@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
 import type {
   AdminUser,
   Answer,
@@ -12,10 +11,7 @@ import type {
   Player,
   Question,
   Quiz,
-} from '../shared/types';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+} from '../shared/types.js';
 
 const isVercel = Boolean(process.env.VERCEL || process.env.NOW_REGION);
 
@@ -23,8 +19,8 @@ function getStoreFilePath(): string {
   if (isVercel) {
     return path.join(os.tmpdir(), 'kahoot-arena-db.json');
   }
-  const dataDir = path.resolve(__dirname, '../data');
   try {
+    const dataDir = path.resolve(process.cwd(), 'data');
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
@@ -229,7 +225,6 @@ export function verifyAdmin(username: string, password: string): AdminUser | nul
     return { id: row.id, username: row.username, createdAt: row.createdAt };
   }
 
-  // Fallback check against default env credentials
   if (
     username.trim().toLowerCase() === defaultUsername.toLowerCase() &&
     password === defaultPassword

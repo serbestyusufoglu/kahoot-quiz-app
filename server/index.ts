@@ -17,13 +17,13 @@ import {
   showLeaderboardForGame,
   advanceToNextQuestionOrFinish,
   finishGame,
-} from './app';
+} from './app.js';
 import {
   getGameByCode,
   updateGameState,
   setPlayerConnected,
-} from './db';
-import type { GameStateSnapshot, OptionColor } from '../shared/types';
+} from './db.js';
+import type { GameStateSnapshot, OptionColor } from '../shared/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -1,7 +1,8 @@
-import express from 'express';
+import expressPkg from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
-import cors from 'cors';
-import QRCode from 'qrcode';
+import corsPkg from 'cors';
+import * as QRCodePkg from 'qrcode';
 import {
   initDatabase,
   verifyAdmin,
@@ -29,14 +30,18 @@ import {
   getAnswersForQuestion,
   getAllAnswersForGame,
   getDashboardStats,
-} from './db';
+} from './db.js';
 import type {
   ActiveQuestionPublic,
   GameStateSnapshot,
   OptionColor,
   Question,
   QuestionResultEntry,
-} from '../shared/types';
+} from '../shared/types.js';
+
+const express = ((expressPkg as any).default || expressPkg) as typeof expressPkg;
+const cors = ((corsPkg as any).default || corsPkg) as typeof corsPkg;
+const QRCode = ((QRCodePkg as any).default || QRCodePkg) as typeof QRCodePkg;
 
 initDatabase();
 
@@ -610,9 +615,9 @@ app.use(cors());
 app.use(express.json());
 
 function requireAdmin(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ): void {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
