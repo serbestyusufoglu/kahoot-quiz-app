@@ -83,7 +83,6 @@ export const PlayerGamePage: React.FC = () => {
     }
   };
 
-  // Automatic reconnection on mount if session exists
   useEffect(() => {
     const code = (routeCode || gameCodeInput).trim();
     if (!code) return;
@@ -102,7 +101,6 @@ export const PlayerGamePage: React.FC = () => {
     }
   }, [routeCode]);
 
-  // Poll state every 800ms (works on Vercel serverless + local) AND listen on Socket.IO
   useEffect(() => {
     if (!joinedPlayer || !snapshot) return;
     const code = snapshot.game.gameCode;
@@ -175,7 +173,6 @@ export const PlayerGamePage: React.FC = () => {
         setSelectedColor(res.currentAnswer.selectedColor);
       }
 
-      // Also join Socket.IO room if available
       getSocket().emit('join_game', {
         gameCode: code.trim(),
         name: res.player.name,
@@ -248,10 +245,13 @@ export const PlayerGamePage: React.FC = () => {
 
   if (!joinedPlayer || !snapshot) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-900 text-white flex flex-col justify-center items-center p-5">
-        <div className="w-full max-w-sm bg-slate-900/95 border border-white/15 rounded-3xl p-6 sm:p-8 shadow-2xl">
+      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-center items-center p-5 relative overflow-hidden">
+        <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[#10b981]/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-[#0ea5e9]/10 blur-3xl" />
+
+        <div className="relative z-10 w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xl shadow-slate-200/60">
           <div className="flex justify-center mb-4">
-            <div className="grid grid-cols-2 gap-1 p-2.5 bg-white/10 rounded-2xl border border-white/15">
+            <div className="grid grid-cols-2 gap-1 p-2.5 bg-slate-50 rounded-2xl border border-slate-200">
               <span className="w-3.5 h-3.5 rounded-sm bg-[#E21B3C]" />
               <span className="w-3.5 h-3.5 rounded-sm bg-[#1368CE]" />
               <span className="w-3.5 h-3.5 rounded-sm bg-[#D89E00]" />
@@ -259,20 +259,20 @@ export const PlayerGamePage: React.FC = () => {
             </div>
           </div>
 
-          <h1 className="text-2xl font-black text-center text-white">Oyuna Katıl</h1>
-          <p className="text-xs text-center text-slate-400 mt-1 mb-6">
+          <h1 className="text-2xl font-black text-center text-slate-900">Oyuna Katıl</h1>
+          <p className="text-xs text-center text-slate-500 mt-1 mb-6 font-medium">
             Oyun kodunu ve ismini girerek yarışmaya bağlan
           </p>
 
           {error && (
-            <div className="mb-4 p-3 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-semibold text-center">
+            <div className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold text-center">
               {error}
             </div>
           )}
 
           <form onSubmit={handleJoinSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-300 mb-1.5">
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-600 mb-1.5">
                 Oyun Kodu:
               </label>
               <input
@@ -282,12 +282,12 @@ export const PlayerGamePage: React.FC = () => {
                 value={gameCodeInput}
                 onChange={(e) => setGameCodeInput(e.target.value.replace(/\s+/g, ''))}
                 placeholder="583421"
-                className="w-full px-4 py-3.5 rounded-2xl bg-slate-950 border border-slate-700 focus:border-emerald-400 focus:outline-none text-center text-2xl font-black tracking-widest text-white font-mono"
+                className="w-full px-4 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 focus:border-[#10b981] focus:bg-white focus:outline-none text-center text-2xl font-black tracking-widest text-slate-900 font-mono transition"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-300 mb-1.5">
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-600 mb-1.5">
                 İsim:
               </label>
               <input
@@ -297,14 +297,14 @@ export const PlayerGamePage: React.FC = () => {
                 value={playerNameInput}
                 onChange={(e) => setPlayerNameInput(e.target.value)}
                 placeholder="Adınız..."
-                className="w-full px-4 py-3.5 rounded-2xl bg-slate-950 border border-slate-700 focus:border-emerald-400 focus:outline-none text-center text-lg font-extrabold text-white"
+                className="w-full px-4 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 focus:border-[#10b981] focus:bg-white focus:outline-none text-center text-lg font-extrabold text-slate-900 transition"
               />
             </div>
 
             <button
               type="submit"
               disabled={joining}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 disabled:opacity-50 text-white font-black text-lg shadow-xl shadow-emerald-600/30 active:scale-[0.98] transition"
+              className="w-full py-4 rounded-2xl bg-[#10b981] hover:bg-emerald-600 disabled:opacity-50 text-white font-black text-lg shadow-lg shadow-emerald-500/25 active:scale-[0.98] transition"
             >
               {joining ? 'KATILINIYOR...' : 'OYUNA KATIL'}
             </button>
@@ -322,16 +322,17 @@ export const PlayerGamePage: React.FC = () => {
     Boolean(currentQuestion && myPlayer.lastAnswer?.questionId === currentQuestion.id);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-between select-none">
-      <header className="bg-slate-900 border-b border-white/10 px-4 py-3 flex items-center justify-between shrink-0">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between select-none">
+      {/* Dark Contrast Header (#0f172a) */}
+      <header className="bg-[#0f172a] text-white px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
         <div className="flex items-center gap-2 min-w-0">
-          <Wifi className="w-4 h-4 text-emerald-400 shrink-0" />
+          <Wifi className="w-4 h-4 text-[#10b981] shrink-0" />
           <span className="font-extrabold text-sm text-white truncate">{myPlayer.name}</span>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 font-semibold">Kod: {game.gameCode}</span>
-          <div className="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-black text-xs">
+          <span className="text-xs text-slate-300 font-semibold">Kod: {game.gameCode}</span>
+          <div className="px-3 py-1 rounded-full bg-[#10b981] text-slate-950 font-black text-xs">
             {myPlayer.totalScore} Puan
           </div>
         </div>
@@ -340,19 +341,19 @@ export const PlayerGamePage: React.FC = () => {
       <main className="flex-1 flex flex-col p-4 max-w-lg w-full mx-auto">
         {(game.status === 'LOBBY' || game.status === 'STARTING') && (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-5">
-            <div className="w-20 h-20 rounded-3xl bg-indigo-600/20 border-2 border-indigo-400/40 flex items-center justify-center animate-bounce">
-              <Sparkles className="w-10 h-10 text-indigo-300" />
+            <div className="w-20 h-20 rounded-2xl bg-emerald-50 border-2 border-[#10b981] flex items-center justify-center animate-bounce">
+              <Sparkles className="w-10 h-10 text-[#10b981]" />
             </div>
             <div className="space-y-2">
-              <div className="text-xs font-extrabold uppercase tracking-widest text-emerald-400">
+              <div className="text-xs font-extrabold uppercase tracking-widest text-[#10b981]">
                 Hoş Geldin, {myPlayer.name}!
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black text-white">
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
                 {game.status === 'STARTING'
                   ? 'Yarışma Başlıyor!'
                   : 'Yarışmanın başlaması bekleniyor...'}
               </h2>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-500">
                 Gözün büyük ekranda olsun! Soru başladığında 4 renk butonu burada açılacak.
               </p>
             </div>
@@ -360,29 +361,32 @@ export const PlayerGamePage: React.FC = () => {
         )}
 
         {game.status === 'PAUSED' && (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-4">
-            <div className="w-20 h-20 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center">
-              <Pause className="w-10 h-10 text-amber-400 animate-pulse" />
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+            <div className="w-full bg-[#0f172a] text-white rounded-2xl p-8 space-y-4 shadow-xl">
+              <div className="w-20 h-20 rounded-full bg-[#0ea5e9]/20 border-2 border-[#0ea5e9] flex items-center justify-center mx-auto">
+                <Pause className="w-10 h-10 text-[#0ea5e9] animate-pulse" />
+              </div>
+              <h2 className="text-3xl font-black text-white tracking-wide">
+                OYUN DURAKLATILDI
+              </h2>
+              <p className="text-sm text-slate-300">
+                Yönetici yarışmayı devam ettirdiğinde ekranınız otomatik olarak güncellenecektir.
+              </p>
             </div>
-            <h2 className="text-3xl font-black text-white tracking-wide">
-              OYUN DURAKLATILDI
-            </h2>
-            <p className="text-sm text-slate-400">
-              Yönetici yarışmayı devam ettirdiğinde ekranınız otomatik olarak güncellenecektir.
-            </p>
           </div>
         )}
 
         {game.status === 'QUESTION' && currentQuestion && (
           <div className="flex-1 flex flex-col justify-between gap-4">
-            <div className="bg-slate-900 border border-white/15 rounded-2xl p-4 text-center shrink-0">
-              <div className="flex items-center justify-between text-xs font-extrabold uppercase tracking-wider text-indigo-300 mb-1.5">
+            {/* Dark Contrast Question Banner (#0f172a) */}
+            <div className="bg-[#0f172a] text-white rounded-2xl p-4 text-center shrink-0 shadow-md">
+              <div className="flex items-center justify-between text-xs font-extrabold uppercase tracking-wider text-[#0ea5e9] mb-1.5">
                 <span>SORU {currentQuestion.index + 1}</span>
                 <span
                   className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono text-sm ${
                     remainingSeconds <= 5
                       ? 'bg-rose-500 text-white animate-pulse'
-                      : 'bg-white/10 text-white'
+                      : 'bg-[#10b981] text-slate-950 font-black'
                   }`}
                 >
                   <Clock className="w-3.5 h-3.5" />
@@ -395,23 +399,23 @@ export const PlayerGamePage: React.FC = () => {
             </div>
 
             {hasAnsweredCurrent ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center bg-slate-900/90 border border-white/15 rounded-3xl p-8 space-y-4">
+              <div className="flex-1 flex flex-col items-center justify-center text-center bg-white border border-slate-200 rounded-2xl p-8 space-y-4 shadow-sm">
                 {(() => {
                   const chosen =
                     selectedColor || myPlayer.lastAnswer?.selectedColor || 'BLUE';
                   const m = COLOR_META[chosen];
                   return (
                     <div
-                      className={`w-24 h-24 rounded-3xl ${m.bgClass} border-4 ${m.borderClass} flex items-center justify-center text-5xl shadow-2xl`}
+                      className={`w-24 h-24 rounded-2xl ${m.bgClass} border-4 ${m.borderClass} flex items-center justify-center text-5xl shadow-xl`}
                     >
                       {m.emoji}
                     </div>
                   );
                 })()}
-                <h2 className="text-2xl sm:text-3xl font-black text-white">
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
                   Cevabınız alındı.
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-400">
+                <p className="text-xs sm:text-sm text-slate-500">
                   Süre bitene veya diğer oyuncular cevaplayana kadar bekleyin...
                 </p>
               </div>
@@ -424,7 +428,7 @@ export const PlayerGamePage: React.FC = () => {
                       key={col}
                       type="button"
                       onClick={() => handleSelectColor(col)}
-                      className={`${m.bgClass} ${m.hoverClass} active:scale-95 border-4 ${m.borderClass} rounded-3xl flex flex-col items-center justify-center p-4 shadow-2xl transition`}
+                      className={`${m.bgClass} ${m.hoverClass} active:scale-95 border-4 ${m.borderClass} rounded-2xl flex flex-col items-center justify-center p-4 shadow-lg transition`}
                     >
                       <span className="text-5xl sm:text-6xl mb-3 drop-shadow">{m.emoji}</span>
                       <span className="text-xl sm:text-2xl font-black tracking-wider text-white uppercase">
@@ -450,15 +454,15 @@ export const PlayerGamePage: React.FC = () => {
               const correctMeta = correctCol ? COLOR_META[correctCol] : null;
 
               return (
-                <div className="w-full bg-slate-900 border border-white/15 rounded-3xl p-7 shadow-2xl space-y-5">
+                <div className="w-full bg-white border border-slate-200 rounded-2xl p-7 shadow-lg space-y-5">
                   <div className="flex justify-center">
                     {isCorrect ? (
-                      <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center">
-                        <CheckCircle2 className="w-12 h-12 text-emerald-400" />
+                      <div className="w-20 h-20 rounded-full bg-emerald-50 border-2 border-[#10b981] flex items-center justify-center">
+                        <CheckCircle2 className="w-12 h-12 text-[#10b981]" />
                       </div>
                     ) : (
-                      <div className="w-20 h-20 rounded-full bg-rose-500/20 border-2 border-rose-400 flex items-center justify-center">
-                        <XCircle className="w-12 h-12 text-rose-400" />
+                      <div className="w-20 h-20 rounded-full bg-rose-50 border-2 border-rose-400 flex items-center justify-center">
+                        <XCircle className="w-12 h-12 text-rose-500" />
                       </div>
                     )}
                   </div>
@@ -466,20 +470,20 @@ export const PlayerGamePage: React.FC = () => {
                   <div>
                     <h2
                       className={`text-3xl font-black ${
-                        isCorrect ? 'text-emerald-400' : 'text-rose-400'
+                        isCorrect ? 'text-[#10b981]' : 'text-rose-500'
                       }`}
                     >
                       {isCorrect ? 'DOĞRU CEVAP!' : 'YANLIŞ / SÜRE DOLDU'}
                     </h2>
-                    <div className="mt-2 inline-block px-5 py-2 rounded-2xl bg-white/10 font-black text-2xl text-white">
+                    <div className="mt-2 inline-block px-5 py-2 rounded-2xl bg-[#0f172a] font-black text-2xl text-[#10b981]">
                       +{earned} Puan
                     </div>
                   </div>
 
                   {correctMeta && (
-                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-white/10 text-xs text-slate-300">
+                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
                       Doğru Cevap:{' '}
-                      <strong className="text-white">
+                      <strong className="text-slate-900">
                         {correctMeta.emoji} {correctMeta.label.toUpperCase()} (
                         {questionResults?.correctOptionText})
                       </strong>
@@ -487,19 +491,19 @@ export const PlayerGamePage: React.FC = () => {
                   )}
 
                   <div className="grid grid-cols-2 gap-3 pt-2">
-                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-white/10">
-                      <div className="text-[11px] uppercase text-slate-400 font-bold">
+                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                      <div className="text-[11px] uppercase text-slate-500 font-bold">
                         Toplam Puanın
                       </div>
-                      <div className="text-2xl font-black text-amber-300 mt-0.5">
+                      <div className="text-2xl font-black text-[#10b981] mt-0.5">
                         {myPlayer.totalScore}
                       </div>
                     </div>
-                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-white/10">
-                      <div className="text-[11px] uppercase text-slate-400 font-bold">
+                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                      <div className="text-[11px] uppercase text-slate-500 font-bold">
                         Sıralaman
                       </div>
-                      <div className="text-2xl font-black text-indigo-300 mt-0.5">
+                      <div className="text-2xl font-black text-[#0ea5e9] mt-0.5">
                         {myRank > 0 ? `${myRank}. / ${leaderboard.length}` : '-'}
                       </div>
                     </div>
@@ -512,23 +516,23 @@ export const PlayerGamePage: React.FC = () => {
 
         {game.status === 'FINISHED' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-            <div className="w-full bg-slate-900 border border-white/15 rounded-3xl p-8 shadow-2xl space-y-5">
+            <div className="w-full bg-[#0f172a] text-white border border-slate-800 rounded-2xl p-8 shadow-xl space-y-5">
               <div className="text-5xl">
                 {myRank === 1 ? '👑 🥇' : myRank === 2 ? '🥈' : myRank === 3 ? '🥉' : '🏁'}
               </div>
               <div>
-                <div className="text-xs font-extrabold uppercase tracking-widest text-amber-300">
+                <div className="text-xs font-extrabold uppercase tracking-widest text-[#10b981]">
                   YARIŞMA TAMAMLANDI
                 </div>
                 <h2 className="text-3xl font-black text-white mt-1">{myPlayer.name}</h2>
               </div>
 
-              <div className="p-5 rounded-2xl bg-slate-950 border border-white/10 space-y-2">
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
                 <div className="text-xs text-slate-400 uppercase font-bold">Final Sıralaman</div>
-                <div className="text-4xl font-black text-indigo-300">
+                <div className="text-4xl font-black text-[#0ea5e9]">
                   {myRank}. Sıra
                 </div>
-                <div className="text-xl font-extrabold text-amber-300">
+                <div className="text-xl font-extrabold text-[#10b981]">
                   Toplam {myPlayer.totalScore} Puan
                 </div>
               </div>

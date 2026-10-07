@@ -32,63 +32,68 @@ export const AdminLoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-slate-900/90 backdrop-blur-xl border border-white/15 rounded-3xl p-8 shadow-2xl">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
+      <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[#10b981]/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-[#0ea5e9]/10 blur-3xl" />
+
+      <div className="relative z-10 max-w-md w-full bg-white border border-slate-200 rounded-2xl p-8 shadow-xl shadow-slate-200/60">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white mb-6 transition"
+          className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 mb-6 transition"
         >
           <ArrowLeft className="w-4 h-4" />
           Ana Sayfaya Dön
         </Link>
 
         <div className="flex items-center gap-3.5 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/30">
+          <div className="w-12 h-12 rounded-2xl bg-[#10b981] flex items-center justify-center shadow-md shadow-emerald-500/25">
             <Shield className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-white">Yönetici Girişi</h1>
-            <p className="text-xs text-slate-400">Soru havuzu ve canlı yarışma yönetim paneli</p>
+            <h1 className="text-2xl font-extrabold text-slate-900">Yönetici Girişi</h1>
+            <p className="text-xs text-slate-500 font-medium">
+              Soru havuzu ve canlı yarışma yönetim paneli
+            </p>
           </div>
         </div>
 
         {error && (
-          <div className="mb-5 p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-sm flex items-center gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div className="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
               Kullanıcı Adı
             </label>
             <div className="relative">
-              <User className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+              <User className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:outline-none text-white text-sm"
+                className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-[#10b981] focus:bg-white focus:outline-none text-slate-900 text-sm font-medium transition"
                 placeholder="admin"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
               Şifre
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:outline-none text-white text-sm"
+                className="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:border-[#10b981] focus:bg-white focus:outline-none text-slate-900 text-sm font-medium transition"
                 placeholder="••••••••"
               />
             </div>
@@ -97,15 +102,16 @@ export const AdminLoginPage: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-sm shadow-lg shadow-indigo-600/25 transition"
+            className="w-full py-3.5 rounded-2xl bg-[#10b981] hover:bg-emerald-600 disabled:opacity-50 text-white font-extrabold text-sm shadow-md shadow-emerald-500/25 transition"
           >
             {loading ? 'Giriş Yapılıyor...' : 'GİRİŞ YAP'}
           </button>
         </form>
 
-        <div className="mt-6 p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs text-slate-400 flex items-center justify-between">
+        {/* Dark Contrast Info Banner (#0f172a) */}
+        <div className="mt-6 p-3.5 rounded-2xl bg-[#0f172a] text-slate-300 text-xs flex items-center justify-between">
           <span>Varsayılan Yönetici Bilgileri:</span>
-          <code className="text-indigo-300 font-mono font-semibold">admin / admin123</code>
+          <code className="text-[#10b981] font-mono font-bold">admin / admin123</code>
         </div>
       </div>
     </div>

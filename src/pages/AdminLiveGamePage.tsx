@@ -98,7 +98,6 @@ export const AdminLiveGamePage: React.FC = () => {
       .then((url) => setQrDataUrl(url))
       .catch(() => {});
 
-    // Initial fetch via REST
     apiFetch(`/api/admin/games/${gameCode}`)
       .then((res) => {
         if (res.snapshot) applySnapshotWithSound(res.snapshot);
@@ -106,7 +105,6 @@ export const AdminLiveGamePage: React.FC = () => {
       })
       .catch((err) => setError(err.message));
 
-    // Polling loop for serverless compatibility (Vercel) + timer state progression
     const pollInterval = setInterval(() => {
       apiFetch<{ ok: boolean; snapshot: GameStateSnapshot }>(
         `/api/realtime/state/${gameCode}`
@@ -119,7 +117,6 @@ export const AdminLiveGamePage: React.FC = () => {
         .catch(() => {});
     }, 800);
 
-    // Optional Socket.IO for instant local updates
     const socket = getSocket();
     const joinAdminRoom = () => {
       socket.emit(
@@ -198,11 +195,11 @@ export const AdminLiveGamePage: React.FC = () => {
 
   if (!snapshot) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+      <div className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-6">
         <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <div className="text-slate-300 font-semibold">Canlı yarışma ekranı yükleniyor...</div>
-          {error && <div className="text-rose-400 text-sm">{error}</div>}
+          <div className="w-10 h-10 border-4 border-[#10b981] border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="text-slate-600 font-semibold">Canlı yarışma ekranı yükleniyor...</div>
+          {error && <div className="text-rose-600 text-sm">{error}</div>}
         </div>
       </div>
     );
@@ -212,36 +209,36 @@ export const AdminLiveGamePage: React.FC = () => {
     snapshot;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white flex flex-col">
-      {/* TOP ADMIN LIVE CONTROL PANEL */}
-      <header className="bg-slate-900/95 backdrop-blur-md border-b border-white/15 px-4 sm:px-6 py-3.5 sticky top-0 z-30">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
+      {/* TOP ADMIN LIVE CONTROL PANEL (#0f172a Dark Contrast Bar with Bright Emerald Buttons) */}
+      <header className="bg-[#0f172a] text-white border-b border-slate-800 px-4 sm:px-6 py-3.5 sticky top-0 z-30 shadow-md">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link
               to="/admin"
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition"
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 hover:text-white transition"
               title="Yönetici Paneline Dön"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40">
                   KOD: {game.gameCode}
                 </span>
                 <span className="text-sm font-extrabold text-white truncate max-w-xs sm:max-w-md">
                   {game.quizTitle}
                 </span>
               </div>
-              <div className="flex items-center gap-4 text-xs text-slate-400 mt-1">
-                <span className="font-bold text-indigo-300">
+              <div className="flex items-center gap-4 text-xs text-slate-300 mt-1">
+                <span className="font-bold text-[#0ea5e9]">
                   {game.status === 'LOBBY'
                     ? `Toplam ${game.totalQuestions} Soru`
                     : `${game.currentQuestionIndex + 1}. SORU / ${game.totalQuestions}`}
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
-                  <Users className="w-3.5 h-3.5 text-emerald-400" />
+                  <Users className="w-3.5 h-3.5 text-[#10b981]" />
                   <span>Oyuncular: </span>
                   <strong className="text-white">{totalPlayers}</strong>
                 </span>
@@ -252,7 +249,7 @@ export const AdminLiveGamePage: React.FC = () => {
                     <span>•</span>
                     <span>
                       Cevaplayan:{' '}
-                      <strong className="text-amber-300">
+                      <strong className="text-[#10b981]">
                         {answeredCount} / {totalPlayers}
                       </strong>
                     </span>
@@ -262,7 +259,7 @@ export const AdminLiveGamePage: React.FC = () => {
                   <>
                     <span>•</span>
                     <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-rose-400" />
+                      <Clock className="w-3.5 h-3.5 text-[#0ea5e9]" />
                       <span>Süre: </span>
                       <strong className="text-white">{remainingSeconds} saniye</strong>
                     </span>
@@ -276,9 +273,9 @@ export const AdminLiveGamePage: React.FC = () => {
             <button
               onClick={handleToggleSound}
               title={soundEnabled ? 'Sesleri Kapat' : 'Sesleri Aç'}
-              className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition ${
+              className={`p-2.5 rounded-2xl border text-xs font-bold flex items-center gap-1.5 transition ${
                 soundEnabled
-                  ? 'bg-indigo-600/25 border-indigo-400/40 text-indigo-200'
+                  ? 'bg-[#0ea5e9]/20 border-[#0ea5e9]/50 text-[#0ea5e9]'
                   : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
               }`}
             >
@@ -291,10 +288,10 @@ export const AdminLiveGamePage: React.FC = () => {
                   autoAdvance: !game.autoAdvance,
                 })
               }
-              className={`px-3 py-2 rounded-xl border text-xs font-bold transition ${
+              className={`px-3 py-2 rounded-2xl border text-xs font-bold transition ${
                 game.autoAdvance
-                  ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
-                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                  ? 'bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981]'
+                  : 'bg-white/5 border-white/10 text-slate-300 hover:text-white'
               }`}
             >
               Otomatik Geçiş: {game.autoAdvance ? 'Açık' : 'Kapalı'}
@@ -303,7 +300,7 @@ export const AdminLiveGamePage: React.FC = () => {
             {game.status === 'LOBBY' && (
               <button
                 onClick={() => emitAdminAction('admin_start_game')}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition"
+                className="px-5 py-2.5 rounded-2xl bg-[#10b981] hover:bg-emerald-400 text-slate-950 font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/25 transition"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>BAŞLAT</span>
@@ -314,7 +311,7 @@ export const AdminLiveGamePage: React.FC = () => {
               <>
                 <button
                   onClick={() => emitAdminAction('admin_end_question')}
-                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 transition"
+                  className="px-3.5 py-2 rounded-2xl bg-[#0ea5e9] hover:bg-sky-400 text-white font-extrabold text-xs flex items-center gap-1.5 transition"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>SORUYU BİTİR</span>
@@ -322,10 +319,10 @@ export const AdminLiveGamePage: React.FC = () => {
 
                 <button
                   onClick={() => emitAdminAction('admin_toggle_pause')}
-                  className={`px-3.5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition ${
+                  className={`px-3.5 py-2 rounded-2xl font-extrabold text-xs flex items-center gap-1.5 transition ${
                     game.status === 'PAUSED'
-                      ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
-                      : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                      ? 'bg-[#10b981] hover:bg-emerald-400 text-slate-950'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
                   {game.status === 'PAUSED' ? (
@@ -343,7 +340,7 @@ export const AdminLiveGamePage: React.FC = () => {
 
                 <button
                   onClick={() => emitAdminAction('admin_next_question')}
-                  className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs flex items-center gap-1.5 transition"
+                  className="px-3.5 py-2 rounded-2xl bg-[#10b981] hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 transition"
                 >
                   <SkipForward className="w-4 h-4" />
                   <span>SONRAKİ SORU</span>
@@ -355,14 +352,14 @@ export const AdminLiveGamePage: React.FC = () => {
               <>
                 <button
                   onClick={() => emitAdminAction('admin_show_leaderboard')}
-                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 transition"
+                  className="px-4 py-2.5 rounded-2xl bg-[#0ea5e9] hover:bg-sky-400 text-white font-extrabold text-xs flex items-center gap-1.5 transition"
                 >
                   <BarChart3 className="w-4 h-4" />
                   <span>CANLI SKOR TABLOSU</span>
                 </button>
                 <button
                   onClick={() => emitAdminAction('admin_next_question')}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 transition"
+                  className="px-4 py-2.5 rounded-2xl bg-[#10b981] hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 transition"
                 >
                   <SkipForward className="w-4 h-4" />
                   <span>
@@ -377,7 +374,7 @@ export const AdminLiveGamePage: React.FC = () => {
             {game.status === 'LEADERBOARD' && (
               <button
                 onClick={() => emitAdminAction('admin_next_question')}
-                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/25 transition"
+                className="px-5 py-2.5 rounded-2xl bg-[#10b981] hover:bg-emerald-400 text-slate-950 font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/25 transition"
               >
                 <SkipForward className="w-4 h-4" />
                 <span>
@@ -391,7 +388,7 @@ export const AdminLiveGamePage: React.FC = () => {
             {game.status !== 'FINISHED' && (
               <button
                 onClick={() => emitAdminAction('admin_finish_game')}
-                className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-bold text-xs flex items-center gap-1.5 transition"
+                className="px-3.5 py-2 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-bold text-xs flex items-center gap-1.5 transition"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
                 <span>OYUNU BİTİR</span>
@@ -402,16 +399,16 @@ export const AdminLiveGamePage: React.FC = () => {
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 sm:p-8 flex flex-col justify-center">
-        {/* STATE 1: LOBBY */}
+        {/* STATE 1: LOBBY (Dark Contrast QR Card #0f172a + Clean Light Players Card) */}
         {game.status === 'LOBBY' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            <div className="lg:col-span-5 bg-slate-900/90 border border-white/15 rounded-3xl p-8 text-center shadow-2xl flex flex-col items-center">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-extrabold uppercase tracking-wider mb-4">
+            <div className="lg:col-span-5 bg-[#0f172a] text-white border border-slate-800 rounded-2xl p-8 text-center shadow-xl flex flex-col items-center">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40 text-xs font-extrabold uppercase tracking-wider mb-4">
                 <Sparkles className="w-4 h-4" />
                 OYUNA KATIL
               </div>
 
-              <div className="p-4 bg-white rounded-3xl shadow-2xl mb-4">
+              <div className="p-4 bg-white rounded-2xl shadow-lg mb-4">
                 {qrDataUrl ? (
                   <img
                     src={qrDataUrl}
@@ -425,22 +422,22 @@ export const AdminLiveGamePage: React.FC = () => {
                 )}
               </div>
 
-              <p className="text-xs font-semibold text-indigo-300 mb-4">
+              <p className="text-xs font-semibold text-[#0ea5e9] mb-4">
                 Oyuncular bu QR kodu okutarak katılabilir.
               </p>
 
-              <div className="w-full bg-slate-950 border border-white/15 rounded-2xl p-4 mb-4">
+              <div className="w-full bg-slate-950 border border-white/10 rounded-2xl p-4 mb-4">
                 <div className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   Oyun Kodu:
                 </div>
-                <div className="text-5xl sm:text-6xl font-black tracking-widest text-white font-mono mt-1">
+                <div className="text-5xl sm:text-6xl font-black tracking-widest text-[#10b981] font-mono mt-1">
                   {game.gameCode}
                 </div>
               </div>
 
               <p className="text-sm text-slate-300 mb-5">
                 Telefonundan QR kodu okut veya oyun adresine git:
-                <span className="block font-mono text-indigo-300 font-bold mt-1 break-all">
+                <span className="block font-mono text-[#0ea5e9] font-bold mt-1 break-all">
                   {joinUrl}
                 </span>
               </p>
@@ -448,16 +445,16 @@ export const AdminLiveGamePage: React.FC = () => {
               <div className="flex items-center gap-2 w-full">
                 <button
                   onClick={handleCopyLink}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white flex items-center justify-center gap-2 transition"
+                  className="flex-1 py-2.5 px-4 rounded-2xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white flex items-center justify-center gap-2 transition"
                 >
-                  {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {copied ? <Check className="w-4 h-4 text-[#10b981]" /> : <Copy className="w-4 h-4" />}
                   <span>{copied ? 'Bağlantı Kopyalandı!' : 'Katılım Linkini Kopyala'}</span>
                 </button>
                 <a
                   href={`/join/${game.gameCode}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="py-2.5 px-4 rounded-xl bg-indigo-600/25 hover:bg-indigo-600/40 border border-indigo-400/30 text-xs font-bold text-indigo-200 flex items-center gap-1.5 transition"
+                  className="py-2.5 px-4 rounded-2xl bg-[#0ea5e9] hover:bg-sky-400 text-xs font-extrabold text-white flex items-center gap-1.5 transition"
                 >
                   <span>Oyuncu Ekranı Aç</span>
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -465,18 +462,18 @@ export const AdminLiveGamePage: React.FC = () => {
               </div>
             </div>
 
-            <div className="lg:col-span-7 bg-slate-900/80 border border-white/15 rounded-3xl p-8 min-h-[480px] flex flex-col justify-between shadow-2xl">
+            <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-8 min-h-[480px] flex flex-col justify-between shadow-lg shadow-slate-200/50">
               <div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/10">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-600/25 border border-indigo-500/40 flex items-center justify-center">
-                      <Users className="w-6 h-6 text-indigo-300" />
+                    <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center">
+                      <Users className="w-6 h-6 text-[#0ea5e9]" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-extrabold text-white">
+                      <h2 className="text-2xl font-extrabold text-slate-900">
                         OYUNCULAR ({players.length})
                       </h2>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-500">
                         Katılan oyuncular gerçek zamanlı olarak aşağıda listelenir.
                       </p>
                     </div>
@@ -484,7 +481,7 @@ export const AdminLiveGamePage: React.FC = () => {
 
                   <button
                     onClick={() => emitAdminAction('admin_start_game')}
-                    className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-extrabold text-base flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/30 transition"
+                    className="px-6 py-3.5 rounded-2xl bg-[#10b981] hover:bg-emerald-600 text-white font-extrabold text-base flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition"
                   >
                     <Play className="w-5 h-5 fill-current" />
                     <span>OYUNU BAŞLAT</span>
@@ -493,15 +490,15 @@ export const AdminLiveGamePage: React.FC = () => {
 
                 {players.length === 0 ? (
                   <div className="py-24 text-center space-y-3">
-                    <div className="inline-flex p-4 rounded-full bg-white/5 text-slate-400 animate-pulse">
+                    <div className="inline-flex p-4 rounded-full bg-slate-100 text-slate-400 animate-pulse">
                       <Users className="w-8 h-8" />
                     </div>
-                    <div className="text-lg font-bold text-slate-300">
+                    <div className="text-lg font-bold text-slate-700">
                       Oyuncuların katılması bekleniyor...
                     </div>
                     <p className="text-xs text-slate-500 max-w-md mx-auto">
                       Telefonunuzdan QR kodu okutarak veya{' '}
-                      <span className="text-indigo-400 font-mono">{joinUrl}</span> adresine giderek
+                      <span className="text-[#0ea5e9] font-mono font-bold">{joinUrl}</span> adresine giderek
                       hemen katılabilirsiniz.
                     </p>
                   </div>
@@ -510,14 +507,14 @@ export const AdminLiveGamePage: React.FC = () => {
                     {players.map((p) => (
                       <div
                         key={p.id}
-                        className="px-4 py-3 rounded-2xl bg-slate-950/90 border border-white/15 flex items-center gap-2.5 shadow-md animate-float"
+                        className="px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-2.5 shadow-sm animate-float"
                       >
                         <span
                           className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                            p.connected ? 'bg-emerald-400' : 'bg-amber-400'
+                            p.connected ? 'bg-[#10b981]' : 'bg-amber-400'
                           }`}
                         />
-                        <span className="font-extrabold text-white text-sm truncate">
+                        <span className="font-extrabold text-slate-900 text-sm truncate">
                           {p.name}
                         </span>
                       </div>
@@ -526,7 +523,7 @@ export const AdminLiveGamePage: React.FC = () => {
                 )}
               </div>
 
-              <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-medium">
                 <span>Quiz: {game.quizTitle}</span>
                 <span>Toplam {game.totalQuestions} Soru</span>
               </div>
@@ -536,8 +533,8 @@ export const AdminLiveGamePage: React.FC = () => {
 
         {/* STATE 2: STARTING */}
         {game.status === 'STARTING' && (
-          <div className="text-center py-20 space-y-6">
-            <div className="inline-flex px-5 py-2 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 text-sm font-extrabold uppercase tracking-widest">
+          <div className="bg-[#0f172a] text-white rounded-2xl p-16 text-center shadow-xl space-y-6">
+            <div className="inline-flex px-5 py-2 rounded-full bg-[#10b981]/20 border border-[#10b981]/40 text-[#10b981] text-sm font-extrabold uppercase tracking-widest">
               Hazır Olun!
             </div>
             <h1 className="text-5xl sm:text-7xl font-black text-white tracking-tight animate-bounce">
@@ -553,8 +550,8 @@ export const AdminLiveGamePage: React.FC = () => {
         {(game.status === 'QUESTION' || game.status === 'PAUSED') && currentQuestion && (
           <div className="space-y-6 relative">
             {game.status === 'PAUSED' && (
-              <div className="inset-0 z-20 bg-slate-950/85 backdrop-blur-md rounded-3xl border-2 border-amber-400/50 p-10 text-center flex flex-col items-center justify-center space-y-4">
-                <Pause className="w-16 h-16 text-amber-400 animate-pulse" />
+              <div className="inset-0 z-20 bg-[#0f172a] text-white rounded-2xl border-2 border-[#0ea5e9] p-10 text-center flex flex-col items-center justify-center space-y-4 shadow-2xl">
+                <Pause className="w-16 h-16 text-[#0ea5e9] animate-pulse" />
                 <h2 className="text-4xl sm:text-5xl font-black text-white tracking-wider">
                   OYUN DURAKLATILDI
                 </h2>
@@ -563,7 +560,7 @@ export const AdminLiveGamePage: React.FC = () => {
                 </p>
                 <button
                   onClick={() => emitAdminAction('admin_toggle_pause')}
-                  className="mt-2 px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-base flex items-center gap-2"
+                  className="mt-2 px-6 py-3 rounded-2xl bg-[#10b981] hover:bg-emerald-400 text-slate-950 font-extrabold text-base flex items-center gap-2"
                 >
                   <Play className="w-5 h-5 fill-current" />
                   <span>OYUNU DEVAM ETTİR</span>
@@ -574,23 +571,24 @@ export const AdminLiveGamePage: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
               <div className="lg:col-span-2 flex justify-center">
                 <div
-                  className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full border-8 flex flex-col items-center justify-center shadow-2xl transition-colors ${
+                  className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full border-8 flex flex-col items-center justify-center shadow-lg transition-colors ${
                     remainingSeconds <= 5
-                      ? 'bg-rose-600/30 border-rose-500 text-rose-200 animate-pulse'
-                      : 'bg-indigo-600/25 border-indigo-400 text-white'
+                      ? 'bg-rose-50 border-rose-500 text-rose-600 animate-pulse'
+                      : 'bg-white border-[#10b981] text-slate-900'
                   }`}
                 >
                   <span className="text-4xl sm:text-5xl font-black font-mono leading-none">
                     {remainingSeconds}
                   </span>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 mt-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mt-1">
                     saniye
                   </span>
                 </div>
               </div>
 
-              <div className="lg:col-span-8 bg-slate-900/95 border border-white/15 rounded-3xl p-8 text-center shadow-2xl">
-                <div className="inline-block px-4 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-extrabold uppercase tracking-widest mb-3">
+              {/* Important Question Panel in Dark Anthracite (#0f172a) */}
+              <div className="lg:col-span-8 bg-[#0f172a] text-white border border-slate-800 rounded-2xl p-8 text-center shadow-xl">
+                <div className="inline-block px-4 py-1 rounded-full bg-[#10b981]/20 text-[#10b981] text-xs font-extrabold uppercase tracking-widest mb-3">
                   SORU {currentQuestion.index + 1} / {currentQuestion.total}
                 </div>
                 <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold text-white leading-snug">
@@ -599,17 +597,18 @@ export const AdminLiveGamePage: React.FC = () => {
               </div>
 
               <div className="lg:col-span-2 flex justify-center">
-                <div className="bg-slate-900/90 border border-white/15 rounded-3xl px-6 py-5 text-center w-full">
-                  <div className="text-3xl sm:text-4xl font-black text-emerald-400">
-                    {answeredCount} <span className="text-lg text-slate-500">/ {totalPlayers}</span>
+                <div className="bg-white border border-slate-200 rounded-2xl px-6 py-5 text-center w-full shadow-sm">
+                  <div className="text-3xl sm:text-4xl font-black text-[#10b981]">
+                    {answeredCount} <span className="text-lg text-slate-400">/ {totalPlayers}</span>
                   </div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mt-1">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 mt-1">
                     Cevaplayan
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* 4 Colored Answer Cards with rounded-2xl */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
               {(
                 [
@@ -623,13 +622,13 @@ export const AdminLiveGamePage: React.FC = () => {
                 return (
                   <div
                     key={opt.color}
-                    className={`${m.bgClass} border-4 ${m.borderClass} rounded-3xl p-7 sm:p-9 shadow-2xl flex items-center gap-5 transition transform hover:scale-[1.01]`}
+                    className={`${m.bgClass} border-4 ${m.borderClass} rounded-2xl p-7 sm:p-9 shadow-lg flex items-center gap-5 transition transform hover:scale-[1.01]`}
                   >
                     <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-black/25 flex items-center justify-center text-3xl sm:text-4xl shrink-0">
                       {m.emoji}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-white/80">
+                      <div className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-white/85">
                         {m.label}
                       </div>
                       <div className="text-2xl sm:text-3xl md:text-4xl font-black text-white break-words mt-0.5">
@@ -646,8 +645,8 @@ export const AdminLiveGamePage: React.FC = () => {
         {/* STATE 5: ANSWER_REVEAL */}
         {game.status === 'ANSWER_REVEAL' && currentQuestion && questionResults && (
           <div className="space-y-8">
-            <div className="bg-slate-900/95 border border-white/15 rounded-3xl p-8 text-center shadow-2xl">
-              <div className="text-xs font-extrabold uppercase tracking-widest text-emerald-400 mb-2">
+            <div className="bg-[#0f172a] text-white border border-slate-800 rounded-2xl p-8 text-center shadow-xl">
+              <div className="text-xs font-extrabold uppercase tracking-widest text-[#10b981] mb-2">
                 DOĞRU CEVAP
               </div>
               <div className="text-lg text-slate-300 mb-4 font-semibold">
@@ -658,7 +657,7 @@ export const AdminLiveGamePage: React.FC = () => {
                 const winMeta = COLOR_META[questionResults.correctColor];
                 return (
                   <div
-                    className={`inline-flex items-center gap-4 px-8 py-5 rounded-3xl ${winMeta.bgClass} border-4 ${winMeta.borderClass} shadow-2xl`}
+                    className={`inline-flex items-center gap-4 px-8 py-5 rounded-2xl ${winMeta.bgClass} border-4 ${winMeta.borderClass} shadow-xl`}
                   >
                     <span className="text-4xl">{winMeta.emoji}</span>
                     <div className="text-left">
@@ -675,8 +674,8 @@ export const AdminLiveGamePage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <div className="lg:col-span-5 bg-slate-900/90 border border-white/15 rounded-3xl p-6 space-y-4">
-                <h3 className="text-base font-extrabold text-white">Cevap Dağılımı</h3>
+              <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
+                <h3 className="text-base font-extrabold text-slate-900">Cevap Dağılımı</h3>
                 {(['RED', 'BLUE', 'YELLOW', 'GREEN'] as OptionColor[]).map((col) => {
                   const m = COLOR_META[col];
                   const count = questionResults.colorCounts[col] || 0;
@@ -695,8 +694,8 @@ export const AdminLiveGamePage: React.FC = () => {
                       key={col}
                       className={`p-4 rounded-2xl border flex items-center justify-between ${
                         isCorrect
-                          ? `${m.bgClass} border-white text-white shadow-lg`
-                          : 'bg-slate-950/70 border-white/10 text-slate-300 opacity-75'
+                          ? `${m.bgClass} border-slate-900 text-white shadow-md`
+                          : 'bg-slate-50 border-slate-200 text-slate-700'
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
@@ -708,7 +707,11 @@ export const AdminLiveGamePage: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {isCorrect && <CheckCircle2 className="w-5 h-5 text-white" />}
-                        <span className="px-3 py-1 rounded-xl bg-black/30 font-extrabold text-sm">
+                        <span
+                          className={`px-3 py-1 rounded-xl font-extrabold text-sm ${
+                            isCorrect ? 'bg-black/25 text-white' : 'bg-slate-200 text-slate-800'
+                          }`}
+                        >
                           {count} Oyuncu
                         </span>
                       </div>
@@ -717,11 +720,11 @@ export const AdminLiveGamePage: React.FC = () => {
                 })}
               </div>
 
-              <div className="lg:col-span-7 bg-slate-900/90 border border-white/15 rounded-3xl p-6 flex flex-col justify-between">
+              <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 flex flex-col justify-between shadow-sm">
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-extrabold text-white">SORU SONUÇLARI</h3>
-                    <span className="text-xs text-slate-400">
+                    <h3 className="text-lg font-extrabold text-slate-900">SORU SONUÇLARI</h3>
+                    <span className="text-xs text-slate-500">
                       Sunucu cevap zamanına göre sıralı
                     </span>
                   </div>
@@ -737,17 +740,17 @@ export const AdminLiveGamePage: React.FC = () => {
                         return (
                           <div
                             key={r.playerId}
-                            className="p-3.5 rounded-2xl bg-slate-950/80 border border-white/10 flex items-center justify-between gap-4"
+                            className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4"
                           >
                             <div className="flex items-center gap-3">
                               <span className="text-lg">
                                 {colMeta ? colMeta.emoji : '⚪'}
                               </span>
                               <div>
-                                <div className="font-extrabold text-white text-base">
+                                <div className="font-extrabold text-slate-900 text-base">
                                   {r.playerName}
                                 </div>
-                                <div className="text-xs text-slate-400">
+                                <div className="text-xs text-slate-500">
                                   {r.elapsedSeconds !== null
                                     ? `Cevap zamanı: ${r.elapsedSeconds.toFixed(3)} saniye`
                                     : 'Cevap vermedi'}
@@ -759,14 +762,14 @@ export const AdminLiveGamePage: React.FC = () => {
                               <span
                                 className={`px-3.5 py-1.5 rounded-xl font-black text-base ${
                                   r.score > 0
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                    : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                                    ? 'bg-emerald-50 text-[#10b981] border border-emerald-200'
+                                    : 'bg-rose-50 text-rose-600 border border-rose-200'
                                 }`}
                               >
                                 +{r.score}
                               </span>
-                              <span className="text-xs text-slate-400 w-24 text-right">
-                                Toplam: <strong className="text-white">{r.totalScore}</strong>
+                              <span className="text-xs text-slate-500 w-24 text-right">
+                                Toplam: <strong className="text-slate-900">{r.totalScore}</strong>
                               </span>
                             </div>
                           </div>
@@ -776,17 +779,17 @@ export const AdminLiveGamePage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-white/10 flex justify-end gap-3">
+                <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end gap-3">
                   <button
                     onClick={() => emitAdminAction('admin_show_leaderboard')}
-                    className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-2 transition"
+                    className="px-5 py-2.5 rounded-2xl bg-[#0ea5e9] hover:bg-sky-600 text-white font-extrabold text-xs flex items-center gap-2 transition"
                   >
                     <BarChart3 className="w-4 h-4" />
                     <span>CANLI SKOR TABLOSU</span>
                   </button>
                   <button
                     onClick={() => emitAdminAction('admin_next_question')}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center gap-2 transition"
+                    className="px-5 py-2.5 rounded-2xl bg-[#10b981] hover:bg-emerald-600 text-white font-extrabold text-xs flex items-center gap-2 transition"
                   >
                     <SkipForward className="w-4 h-4" />
                     <span>SONRAKİ SORU</span>
@@ -799,11 +802,11 @@ export const AdminLiveGamePage: React.FC = () => {
 
         {/* STATE 6: LEADERBOARD */}
         {game.status === 'LEADERBOARD' && (
-          <div className="max-w-3xl w-full mx-auto bg-slate-900/95 border border-white/15 rounded-3xl p-8 shadow-2xl space-y-6">
+          <div className="max-w-3xl w-full mx-auto bg-[#0f172a] text-white border border-slate-800 rounded-2xl p-8 shadow-xl space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
-                  <Trophy className="w-6 h-6 text-amber-400" />
+                <div className="w-12 h-12 rounded-2xl bg-[#10b981]/20 border border-[#10b981]/40 flex items-center justify-center">
+                  <Trophy className="w-6 h-6 text-[#10b981]" />
                 </div>
                 <div>
                   <h2 className="text-2xl sm:text-3xl font-black text-white">
@@ -817,7 +820,7 @@ export const AdminLiveGamePage: React.FC = () => {
 
               <button
                 onClick={() => emitAdminAction('admin_next_question')}
-                className="px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/25 transition"
+                className="px-5 py-3 rounded-2xl bg-[#10b981] hover:bg-emerald-400 text-slate-950 font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/25 transition"
               >
                 <span>
                   {game.currentQuestionIndex + 1 >= game.totalQuestions
@@ -834,23 +837,21 @@ export const AdminLiveGamePage: React.FC = () => {
                   key={p.id}
                   className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
                     idx === 0
-                      ? 'bg-gradient-to-r from-amber-500/25 to-yellow-500/10 border-amber-400/50 scale-[1.01]'
+                      ? 'bg-[#10b981]/20 border-[#10b981] scale-[1.01]'
                       : idx === 1
-                      ? 'bg-slate-800/90 border-slate-500/40'
-                      : idx === 2
-                      ? 'bg-amber-900/20 border-amber-700/40'
-                      : 'bg-slate-950/80 border-white/10'
+                      ? 'bg-[#0ea5e9]/15 border-[#0ea5e9]/50'
+                      : 'bg-white/5 border-white/10'
                   }`}
                 >
                   <div className="flex items-center gap-4">
-                    <span className="w-9 h-9 rounded-xl bg-black/30 font-black text-base flex items-center justify-center">
+                    <span className="w-9 h-9 rounded-xl bg-black/30 font-black text-base flex items-center justify-center text-[#10b981]">
                       {idx + 1}.
                     </span>
                     <span className="text-lg sm:text-xl font-extrabold text-white">
                       {p.name}
                     </span>
                   </div>
-                  <div className="text-xl sm:text-2xl font-black text-amber-300 font-mono">
+                  <div className="text-xl sm:text-2xl font-black text-[#10b981] font-mono">
                     {p.totalScore} <span className="text-xs font-sans text-slate-400">puan</span>
                   </div>
                 </div>
@@ -862,8 +863,8 @@ export const AdminLiveGamePage: React.FC = () => {
         {/* STATE 7: FINISHED */}
         {game.status === 'FINISHED' && (
           <div className="space-y-8">
-            <div className="bg-slate-900/95 border border-white/15 rounded-3xl p-8 sm:p-10 text-center shadow-2xl">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-extrabold uppercase tracking-widest mb-4">
+            <div className="bg-[#0f172a] text-white border border-slate-800 rounded-2xl p-8 sm:p-10 text-center shadow-xl">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#10b981]/20 border border-[#10b981]/40 text-[#10b981] text-xs font-extrabold uppercase tracking-widest mb-4">
                 <Trophy className="w-4 h-4" />
                 YARIŞMA TAMAMLANDI
               </div>
@@ -872,15 +873,15 @@ export const AdminLiveGamePage: React.FC = () => {
               </h1>
 
               {leaderboard[0] && (
-                <div className="max-w-lg mx-auto mb-8 p-6 rounded-3xl bg-gradient-to-br from-amber-500/30 via-yellow-500/20 to-indigo-600/20 border-2 border-amber-400 shadow-2xl animate-float">
+                <div className="max-w-lg mx-auto mb-8 p-6 rounded-2xl bg-gradient-to-br from-[#10b981]/25 to-[#0ea5e9]/20 border-2 border-[#10b981] shadow-xl animate-float">
                   <div className="text-4xl mb-2">👑 🥇</div>
-                  <div className="text-xs font-extrabold uppercase tracking-widest text-amber-300">
+                  <div className="text-xs font-extrabold uppercase tracking-widest text-[#10b981]">
                     YARIŞMA BİRİNCİSİ
                   </div>
                   <div className="text-3xl sm:text-4xl font-black text-white mt-1">
                     1. {leaderboard[0].name}
                   </div>
-                  <div className="text-2xl font-extrabold text-amber-300 mt-1">
+                  <div className="text-2xl font-extrabold text-[#10b981] mt-1">
                     {leaderboard[0].totalScore} puan
                   </div>
                 </div>
@@ -895,12 +896,10 @@ export const AdminLiveGamePage: React.FC = () => {
                       key={p.id}
                       className={`p-4 rounded-2xl border flex items-center justify-between ${
                         idx === 0
-                          ? 'bg-amber-500/20 border-amber-400/60'
+                          ? 'bg-[#10b981]/20 border-[#10b981]/60'
                           : idx === 1
-                          ? 'bg-slate-800/80 border-slate-400/40'
-                          : idx === 2
-                          ? 'bg-amber-900/25 border-amber-600/40'
-                          : 'bg-slate-950/80 border-white/10'
+                          ? 'bg-[#0ea5e9]/15 border-[#0ea5e9]/40'
+                          : 'bg-white/5 border-white/10'
                       }`}
                     >
                       <div className="flex items-center gap-3 text-lg font-extrabold text-white">
@@ -909,7 +908,7 @@ export const AdminLiveGamePage: React.FC = () => {
                           {idx + 1}. {p.name}
                         </span>
                       </div>
-                      <div className="text-lg font-black text-amber-300">
+                      <div className="text-lg font-black text-[#10b981]">
                         {p.totalScore} puan
                       </div>
                     </div>
@@ -920,7 +919,7 @@ export const AdminLiveGamePage: React.FC = () => {
               <div className="mt-8 flex justify-center gap-4">
                 <Link
                   to="/admin"
-                  className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm transition"
+                  className="px-6 py-3 rounded-2xl bg-[#10b981] hover:bg-emerald-400 text-slate-950 font-extrabold text-sm transition"
                 >
                   Yönetici Paneline Dön
                 </Link>
@@ -928,17 +927,17 @@ export const AdminLiveGamePage: React.FC = () => {
             </div>
 
             {allAnswers.length > 0 && (
-              <div className="bg-slate-900/90 border border-white/15 rounded-3xl p-6">
-                <h3 className="text-base font-extrabold text-white mb-1">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                <h3 className="text-base font-extrabold text-slate-900 mb-1">
                   Detaylı Sunucu Cevap Zamanları (Timestamp Kayıtları)
                 </h3>
-                <p className="text-xs text-slate-400 mb-4">
+                <p className="text-xs text-slate-500 mb-4">
                   Aynı anda gönderilen cevaplar milisaniye hassasiyetinde sunucu alış zamanına göre sıralanmıştır.
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b border-white/10 text-slate-400 uppercase">
+                      <tr className="border-b border-slate-200 text-slate-500 uppercase bg-slate-50">
                         <th className="py-2.5 px-3">Oyuncu</th>
                         <th className="py-2.5 px-3">Seçilen Renk</th>
                         <th className="py-2.5 px-3">Cevap Zamanı</th>
@@ -946,28 +945,28 @@ export const AdminLiveGamePage: React.FC = () => {
                         <th className="py-2.5 px-3 text-right">Kazanılan Puan</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/10">
+                    <tbody className="divide-y divide-slate-100">
                       {allAnswers.map((a) => {
                         const m = COLOR_META[a.selectedColor];
                         return (
                           <tr key={a.id}>
-                            <td className="py-2.5 px-3 font-bold text-white">
+                            <td className="py-2.5 px-3 font-bold text-slate-900">
                               {a.playerName || a.playerId}
                             </td>
-                            <td className="py-2.5 px-3">
+                            <td className="py-2.5 px-3 text-slate-700">
                               {m.emoji} {m.label}
                             </td>
-                            <td className="py-2.5 px-3 font-mono text-indigo-300">
+                            <td className="py-2.5 px-3 font-mono font-semibold text-[#0ea5e9]">
                               {a.elapsedSeconds.toFixed(3)} saniye
                             </td>
                             <td className="py-2.5 px-3">
                               {a.isCorrect ? (
-                                <span className="text-emerald-400 font-bold">Doğru</span>
+                                <span className="text-[#10b981] font-bold">Doğru</span>
                               ) : (
-                                <span className="text-rose-400 font-bold">Yanlış</span>
+                                <span className="text-rose-600 font-bold">Yanlış</span>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-right font-extrabold text-white">
+                            <td className="py-2.5 px-3 text-right font-extrabold text-slate-900">
                               +{a.score}
                             </td>
                           </tr>

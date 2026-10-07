@@ -149,7 +149,7 @@ export const COLOR_META: Record<
     bgClass: 'bg-[#E21B3C]',
     hoverClass: 'hover:bg-[#C81533]',
     borderClass: 'border-[#ff4d6a]',
-    badgeClass: 'bg-[#E21B3C]/20 text-[#ff6b81] border-[#E21B3C]/40',
+    badgeClass: 'bg-rose-50 text-[#E21B3C] border-rose-200',
     hex: '#E21B3C',
   },
   BLUE: {
@@ -159,7 +159,7 @@ export const COLOR_META: Record<
     bgClass: 'bg-[#1368CE]',
     hoverClass: 'hover:bg-[#0F56AC]',
     borderClass: 'border-[#4592f5]',
-    badgeClass: 'bg-[#1368CE]/20 text-[#68a8ff] border-[#1368CE]/40',
+    badgeClass: 'bg-sky-50 text-[#1368CE] border-sky-200',
     hex: '#1368CE',
   },
   YELLOW: {
@@ -169,7 +169,7 @@ export const COLOR_META: Record<
     bgClass: 'bg-[#D89E00]',
     hoverClass: 'hover:bg-[#B88600]',
     borderClass: 'border-[#ffc125]',
-    badgeClass: 'bg-[#D89E00]/20 text-[#ffd24c] border-[#D89E00]/40',
+    badgeClass: 'bg-amber-50 text-[#B88600] border-amber-200',
     hex: '#D89E00',
   },
   GREEN: {
@@ -179,7 +179,7 @@ export const COLOR_META: Record<
     bgClass: 'bg-[#26890C]',
     hoverClass: 'hover:bg-[#1E6E09]',
     borderClass: 'border-[#46b828]',
-    badgeClass: 'bg-[#26890C]/20 text-[#6be04c] border-[#26890C]/40',
+    badgeClass: 'bg-emerald-50 text-[#26890C] border-emerald-200',
     hex: '#26890C',
   },
 };
