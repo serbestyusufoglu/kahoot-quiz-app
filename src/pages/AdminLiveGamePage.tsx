@@ -1,0 +1,998 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import QRCode from 'qrcode';
+import {
+  Play,
+  Pause,
+  SkipForward,
+  Square,
+  Trophy,
+  Users,
+  Clock,
+  Volume2,
+  VolumeX,
+  ArrowLeft,
+  CheckCircle2,
+  Sparkles,
+  Copy,
+  Check,
+  ExternalLink,
+  BarChart3,
+} from 'lucide-react';
+import { apiFetch, getAdminToken, getSocket } from '../utils/api.ts';
+import { useServerTimer } from '../utils/useServerTimer.ts';
+import { soundManager } from '../utils/sound.ts';
+import {
+  COLOR_META,
+  type Answer,
+  type GameStateSnapshot,
+  type OptionColor,
+} from '../../shared/types.ts';
+
+export const AdminLiveGamePage: React.FC = () => {
+  const { gameCode } = useParams<{ gameCode: string }>();
+  const navigate = useNavigate();
+
+  const [snapshot, setSnapshot] = useState<GameStateSnapshot | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [joinUrl, setJoinUrl] = useState<string>('');
+  const [allAnswers, setAllAnswers] = useState<Answer[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(soundManager.enabled);
+
+  const remainingSeconds = useServerTimer({
+    status: snapshot?.game.status,
+    questionEndsAt: snapshot?.game.questionEndsAt,
+    remainingMsWhenPaused: snapshot?.game.remainingMsWhenPaused,
+    serverTime: snapshot?.serverTime,
+    playTickSound: true,
+  });
+
+  useEffect(() => {
+    const token = getAdminToken();
+    if (!token) {
+      navigate('/admin/login');
+      return;
+    }
+    if (!gameCode) return;
+
+    const fullJoinUrl = `${window.location.origin}/join/${gameCode}`;
+    setJoinUrl(fullJoinUrl);
+    QRCode.toDataURL(fullJoinUrl, {
+      width: 400,
+      margin: 2,
+      color: { dark: '#0f172a', light: '#ffffff' },
+    })
+      .then((url) => setQrDataUrl(url))
+      .catch(() => {});
+
+    // Initial fetch
+    apiFetch(`/api/admin/games/${gameCode}`)
+      .then((res) => {
+        if (res.snapshot) setSnapshot(res.snapshot);
+        if (res.allAnswers) setAllAnswers(res.allAnswers);
+      })
+      .catch((err) => setError(err.message));
+
+    const socket = getSocket();
+
+    const joinAdminRoom = () => {
+      socket.emit(
+        'admin_join_game',
+        { gameCode, token },
+        (res: { ok: boolean; error?: string; snapshot?: GameStateSnapshot }) => {
+          if (!res.ok) {
+            setError(res.error || 'Oyun odasına bağlanılamadı.');
+          } else if (res.snapshot) {
+            setSnapshot(res.snapshot);
+          }
+        }
+      );
+    };
+
+    joinAdminRoom();
+    socket.on('connect', joinAdminRoom);
+
+    const handleSync = (nextSnap: GameStateSnapshot) => {
+      if (nextSnap.game.gameCode === gameCode) {
+        setSnapshot(nextSnap);
+      }
+    };
+
+    const handleQuestionStarted = (nextSnap: GameStateSnapshot) => {
+      if (nextSnap.game.gameCode === gameCode) {
+        setSnapshot(nextSnap);
+        soundManager.playQuestionStart();
+      }
+    };
+
+    const handleAnswerRevealed = (nextSnap: GameStateSnapshot) => {
+      if (nextSnap.game.gameCode === gameCode) {
+        setSnapshot(nextSnap);
+        soundManager.playTimeUp();
+      }
+    };
+
+    const handleGameFinished = (nextSnap: GameStateSnapshot) => {
+      if (nextSnap.game.gameCode === gameCode) {
+        setSnapshot(nextSnap);
+        soundManager.playWinner();
+        apiFetch(`/api/admin/games/${gameCode}`)
+          .then((r) => {
+            if (r.allAnswers) setAllAnswers(r.allAnswers);
+          })
+          .catch(() => {});
+      }
+    };
+
+    socket.on('game_state_sync', handleSync);
+    socket.on('question_started', handleQuestionStarted);
+    socket.on('answer_revealed', handleAnswerRevealed);
+    socket.on('game_finished', handleGameFinished);
+
+    return () => {
+      socket.off('connect', joinAdminRoom);
+      socket.off('game_state_sync', handleSync);
+      socket.off('question_started', handleQuestionStarted);
+      socket.off('answer_revealed', handleAnswerRevealed);
+      socket.off('game_finished', handleGameFinished);
+    };
+  }, [gameCode, navigate]);
+
+  const emitAdminAction = (event: string, extraPayload: Record<string, any> = {}) => {
+    const token = getAdminToken();
+    if (!token || !gameCode) return;
+    getSocket().emit(
+      event,
+      { gameCode, token, ...extraPayload },
+      (res: { ok: boolean; error?: string }) => {
+        if (!res?.ok && res?.error) {
+          setError(res.error);
+        }
+      }
+    );
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(joinUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleToggleSound = () => {
+    const next = soundManager.toggle();
+    setSoundEnabled(next);
+  };
+
+  if (!snapshot) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="text-slate-300 font-semibold">Canlı yarışma ekranı yükleniyor...</div>
+          {error && <div className="text-rose-400 text-sm">{error}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  const { game, players, currentQuestion, answeredCount, totalPlayers, questionResults, leaderboard } =
+    snapshot;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white flex flex-col">
+      {/* ===================================================================== */}
+      {/* TOP ADMIN LIVE CONTROL PANEL (Section 18)                             */}
+      {/* ===================================================================== */}
+      <header className="bg-slate-900/95 backdrop-blur-md border-b border-white/15 px-4 sm:px-6 py-3.5 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+          {/* Left Info: Back button + Quiz Title + Question Counter */}
+          <div className="flex items-center gap-3">
+            <Link
+              to="/admin"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition"
+              title="Yönetici Paneline Dön"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  KOD: {game.gameCode}
+                </span>
+                <span className="text-sm font-extrabold text-white truncate max-w-xs sm:max-w-md">
+                  {game.quizTitle}
+                </span>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-slate-400 mt-1">
+                <span className="font-bold text-indigo-300">
+                  {game.status === 'LOBBY'
+                    ? `Toplam ${game.totalQuestions} Soru`
+                    : `${game.currentQuestionIndex + 1}. SORU / ${game.totalQuestions}`}
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Oyuncular: </span>
+                  <strong className="text-white">{totalPlayers}</strong>
+                </span>
+                {(game.status === 'QUESTION' ||
+                  game.status === 'PAUSED' ||
+                  game.status === 'ANSWER_REVEAL') && (
+                  <>
+                    <span>•</span>
+                    <span>
+                      Cevaplayan:{' '}
+                      <strong className="text-amber-300">
+                        {answeredCount} / {totalPlayers}
+                      </strong>
+                    </span>
+                  </>
+                )}
+                {(game.status === 'QUESTION' || game.status === 'PAUSED') && (
+                  <>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Süre: </span>
+                      <strong className="text-white">{remainingSeconds} saniye</strong>
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Controls: Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Sound toggle */}
+            <button
+              onClick={handleToggleSound}
+              title={soundEnabled ? 'Sesleri Kapat' : 'Sesleri Aç'}
+              className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition ${
+                soundEnabled
+                  ? 'bg-indigo-600/25 border-indigo-400/40 text-indigo-200'
+                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+              }`}
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+
+            {/* Auto-advance toggle */}
+            <button
+              onClick={() =>
+                emitAdminAction('admin_toggle_auto_advance', {
+                  autoAdvance: !game.autoAdvance,
+                })
+              }
+              className={`px-3 py-2 rounded-xl border text-xs font-bold transition ${
+                game.autoAdvance
+                  ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+              }`}
+            >
+              Otomatik Geçiş: {game.autoAdvance ? 'Açık' : 'Kapalı'}
+            </button>
+
+            {/* LOBBY Controls */}
+            {game.status === 'LOBBY' && (
+              <button
+                onClick={() => emitAdminAction('admin_start_game')}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>BAŞLAT</span>
+              </button>
+            )}
+
+            {/* QUESTION / PAUSED Controls */}
+            {(game.status === 'QUESTION' || game.status === 'PAUSED') && (
+              <>
+                <button
+                  onClick={() => emitAdminAction('admin_end_question')}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 transition"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>SORUYU BİTİR</span>
+                </button>
+
+                <button
+                  onClick={() => emitAdminAction('admin_toggle_pause')}
+                  className={`px-3.5 py-2 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition ${
+                    game.status === 'PAUSED'
+                      ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                      : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                  }`}
+                >
+                  {game.status === 'PAUSED' ? (
+                    <>
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>OYUNU DEVAM ETTİR</span>
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="w-4 h-4" />
+                      <span>OYUNU DURAKLAT</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => emitAdminAction('admin_next_question')}
+                  className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs flex items-center gap-1.5 transition"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  <span>SONRAKİ SORU</span>
+                </button>
+              </>
+            )}
+
+            {/* ANSWER_REVEAL Controls */}
+            {game.status === 'ANSWER_REVEAL' && (
+              <>
+                <button
+                  onClick={() => emitAdminAction('admin_show_leaderboard')}
+                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-1.5 transition"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span>CANLI SKOR TABLOSU</span>
+                </button>
+                <button
+                  onClick={() => emitAdminAction('admin_next_question')}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 transition"
+                >
+                  <SkipForward className="w-4 h-4" />
+                  <span>
+                    {game.currentQuestionIndex + 1 >= game.totalQuestions
+                      ? 'SONUÇ EKRANINA GEÇ'
+                      : 'SONRAKİ SORU'}
+                  </span>
+                </button>
+              </>
+            )}
+
+            {/* LEADERBOARD Controls */}
+            {game.status === 'LEADERBOARD' && (
+              <button
+                onClick={() => emitAdminAction('admin_next_question')}
+                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/25 transition"
+              >
+                <SkipForward className="w-4 h-4" />
+                <span>
+                  {game.currentQuestionIndex + 1 >= game.totalQuestions
+                    ? 'SONUÇLARI GÖSTER'
+                    : 'SONRAKİ SORU'}
+                </span>
+              </button>
+            )}
+
+            {/* OYUNU BİTİR Button */}
+            {game.status !== 'FINISHED' && (
+              <button
+                onClick={() => emitAdminAction('admin_finish_game')}
+                className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-bold text-xs flex items-center gap-1.5 transition"
+              >
+                <Square className="w-3.5 h-3.5 fill-current" />
+                <span>OYUNU BİTİR</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ===================================================================== */}
+      {/* MAIN BIG SCREEN AREA (Projector / Smartboard View)                    */}
+      {/* ===================================================================== */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-6 sm:p-8 flex flex-col justify-center">
+        {/* ------------------------------------------------------------------- */}
+        {/* STATE 1: LOBBY (Section 7, 8, 25)                                   */}
+        {/* ------------------------------------------------------------------- */}
+        {game.status === 'LOBBY' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            {/* Left: QR Code & Game Code Card */}
+            <div className="lg:col-span-5 bg-slate-900/90 border border-white/15 rounded-3xl p-8 text-center shadow-2xl flex flex-col items-center">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-extrabold uppercase tracking-wider mb-4">
+                <Sparkles className="w-4 h-4" />
+                OYUNA KATIL
+              </div>
+
+              {/* Large Scannable QR Code */}
+              <div className="p-4 bg-white rounded-3xl shadow-2xl mb-4">
+                {qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt={`Oyun Kodu ${game.gameCode} QR`}
+                    className="w-60 h-60 sm:w-64 sm:h-64 object-contain"
+                  />
+                ) : (
+                  <div className="w-60 h-60 flex items-center justify-center text-slate-900 font-bold">
+                    QR Hazırlanıyor...
+                  </div>
+                )}
+              </div>
+
+              <p className="text-xs font-semibold text-indigo-300 mb-4">
+                Oyuncular bu QR kodu okutarak katılabilir.
+              </p>
+
+              <div className="w-full bg-slate-950 border border-white/15 rounded-2xl p-4 mb-4">
+                <div className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                  Oyun Kodu:
+                </div>
+                <div className="text-5xl sm:text-6xl font-black tracking-widest text-white font-mono mt-1">
+                  {game.gameCode}
+                </div>
+              </div>
+
+              <p className="text-sm text-slate-300 mb-5">
+                Telefonundan QR kodu okut veya oyun adresine git:
+                <span className="block font-mono text-indigo-300 font-bold mt-1 break-all">
+                  {joinUrl}
+                </span>
+              </p>
+
+              <div className="flex items-center gap-2 w-full">
+                <button
+                  onClick={handleCopyLink}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white flex items-center justify-center gap-2 transition"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  <span>{copied ? ' Bağlantı Kopyalandı!' : 'Katılım Linkini Kopyala'}</span>
+                </button>
+                <a
+                  href={`/join/${game.gameCode}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="py-2.5 px-4 rounded-xl bg-indigo-600/25 hover:bg-indigo-600/40 border border-indigo-400/30 text-xs font-bold text-indigo-200 flex items-center gap-1.5 transition"
+                >
+                  <span>Oyuncu Ekranı Aç</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {/* Right: Live Connected Players List */}
+            <div className="lg:col-span-7 bg-slate-900/80 border border-white/15 rounded-3xl p-8 min-h-[480px] flex flex-col justify-between shadow-2xl">
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-600/25 border border-indigo-500/40 flex items-center justify-center">
+                      <Users className="w-6 h-6 text-indigo-300" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-extrabold text-white">
+                        OYUNCULAR ({players.length})
+                      </h2>
+                      <p className="text-xs text-slate-400">
+                        Katılan oyuncular gerçek zamanlı olarak aşağıda listelenir.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => emitAdminAction('admin_start_game')}
+                    className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-extrabold text-base flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/30 transition"
+                  >
+                    <Play className="w-5 h-5 fill-current" />
+                    <span>OYUNU BAŞLAT</span>
+                  </button>
+                </div>
+
+                {/* Player Badges Grid */}
+                {players.length === 0 ? (
+                  <div className="py-24 text-center space-y-3">
+                    <div className="inline-flex p-4 rounded-full bg-white/5 text-slate-400 animate-pulse">
+                      <Users className="w-8 h-8" />
+                    </div>
+                    <div className="text-lg font-bold text-slate-300">
+                      Oyuncuların katılması bekleniyor...
+                    </div>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Telefonunuzdan QR kodu okutarak veya{' '}
+                      <span className="text-indigo-400 font-mono">{joinUrl}</span> adresine giderek
+                      hemen katılabilirsiniz.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[340px] overflow-y-auto pr-1">
+                    {players.map((p) => (
+                      <div
+                        key={p.id}
+                        className="px-4 py-3 rounded-2xl bg-slate-950/90 border border-white/15 flex items-center gap-2.5 shadow-md animate-float"
+                      >
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                            p.connected ? 'bg-emerald-400' : 'bg-amber-400'
+                          }`}
+                        />
+                        <span className="font-extrabold text-white text-sm truncate">
+                          {p.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+                <span>Quiz: {game.quizTitle}</span>
+                <span>Toplam {game.totalQuestions} Soru</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------------- */}
+        {/* STATE 2: STARTING                                                   */}
+        {/* ------------------------------------------------------------------- */}
+        {game.status === 'STARTING' && (
+          <div className="text-center py-20 space-y-6">
+            <div className="inline-flex px-5 py-2 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 text-sm font-extrabold uppercase tracking-widest">
+              Hazır Olun!
+            </div>
+            <h1 className="text-5xl sm:text-7xl font-black text-white tracking-tight animate-bounce">
+              Yarışma Başlıyor...
+            </h1>
+            <p className="text-lg text-slate-300">
+              Telefon ekranlarınıza bakın! İlk soru birazdan ekranda olacak.
+            </p>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------------- */}
+        {/* STATE 3 & 4: QUESTION & PAUSED (Section 9, 11, 19)                  */}
+        {/* ------------------------------------------------------------------- */}
+        {(game.status === 'QUESTION' || game.status === 'PAUSED') && currentQuestion && (
+          <div className="space-y-6 relative">
+            {/* Pause Overlay Banner */}
+            {game.status === 'PAUSED' && (
+              <div className=" inset-0 z-20 bg-slate-950/85 backdrop-blur-md rounded-3xl border-2 border-amber-400/50 p-10 text-center flex flex-col items-center justify-center space-y-4">
+                <Pause className="w-16 h-16 text-amber-400 animate-pulse" />
+                <h2 className="text-4xl sm:text-5xl font-black text-white tracking-wider">
+                  OYUN DURAKLATILDI
+                </h2>
+                <p className="text-slate-300 text-base">
+                  Yönetici oyunu devam ettirdiğinde kaldığı süreden ({remainingSeconds} sn) devam edecektir.
+                </p>
+                <button
+                  onClick={() => emitAdminAction('admin_toggle_pause')}
+                  className="mt-2 px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-base flex items-center gap-2"
+                >
+                  <Play className="w-5 h-5 fill-current" />
+                  <span>OYUNU DEVAM ETTİR</span>
+                </button>
+              </div>
+            )}
+
+            {/* Question Header & Synchronized Big Countdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              {/* Timer Circle */}
+              <div className="lg:col-span-2 flex justify-center">
+                <div
+                  className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full border-8 flex flex-col items-center justify-center shadow-2xl transition-colors ${
+                    remainingSeconds <= 5
+                      ? 'bg-rose-600/30 border-rose-500 text-rose-200 animate-pulse'
+                      : 'bg-indigo-600/25 border-indigo-400 text-white'
+                  }`}
+                >
+                  <span className="text-4xl sm:text-5xl font-black font-mono leading-none">
+                    {remainingSeconds}
+                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 mt-1">
+                    saniye
+                  </span>
+                </div>
+              </div>
+
+              {/* Question Card */}
+              <div className="lg:col-span-8 bg-slate-900/95 border border-white/15 rounded-3xl p-8 text-center shadow-2xl">
+                <div className="inline-block px-4 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-extrabold uppercase tracking-widest mb-3">
+                  SORU {currentQuestion.index + 1} / {currentQuestion.total}
+                </div>
+                <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold text-white leading-snug">
+                  "{currentQuestion.text}"
+                </h1>
+              </div>
+
+              {/* Live Answered Count Box */}
+              <div className="lg:col-span-2 flex justify-center">
+                <div className="bg-slate-900/90 border border-white/15 rounded-3xl px-6 py-5 text-center w-full">
+                  <div className="text-3xl sm:text-4xl font-black text-emerald-400">
+                    {answeredCount} <span className="text-lg text-slate-500">/ {totalPlayers}</span>
+                  </div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mt-1">
+                    Cevaplayan
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4 Large Colored Option Blocks (Section 2 & 9) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+              {(
+                [
+                  { color: 'RED' as OptionColor, text: currentQuestion.redOption },
+                  { color: 'BLUE' as OptionColor, text: currentQuestion.blueOption },
+                  { color: 'YELLOW' as OptionColor, text: currentQuestion.yellowOption },
+                  { color: 'GREEN' as OptionColor, text: currentQuestion.greenOption },
+                ] as const
+              ).map((opt) => {
+                const m = COLOR_META[opt.color];
+                return (
+                  <div
+                    key={opt.color}
+                    className={`${m.bgClass} border-4 ${m.borderClass} rounded-3xl p-7 sm:p-9 shadow-2xl flex items-center gap-5 transition transform hover:scale-[1.01]`}
+                  >
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-black/25 flex items-center justify-center text-3xl sm:text-4xl shrink-0">
+                      {m.emoji}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-white/80">
+                        {m.label}
+                      </div>
+                      <div className="text-2xl sm:text-3xl md:text-4xl font-black text-white break-words mt-0.5">
+                        {opt.text}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------------- */}
+        {/* STATE 5: ANSWER_REVEAL (Section 15)                                 */}
+        {/* ------------------------------------------------------------------- */}
+        {game.status === 'ANSWER_REVEAL' && currentQuestion && questionResults && (
+          <div className="space-y-8">
+            {/* Winning Color Banner */}
+            <div className="bg-slate-900/95 border border-white/15 rounded-3xl p-8 text-center shadow-2xl">
+              <div className="text-xs font-extrabold uppercase tracking-widest text-emerald-400 mb-2">
+                DOĞRU CEVAP
+              </div>
+              <div className="text-lg text-slate-300 mb-4 font-semibold">
+                "{currentQuestion.text}"
+              </div>
+
+              {(() => {
+                const winMeta = COLOR_META[questionResults.correctColor];
+                return (
+                  <div
+                    className={`inline-flex items-center gap-4 px-8 py-5 rounded-3xl ${winMeta.bgClass} border-4 ${winMeta.borderClass} shadow-2xl`}
+                  >
+                    <span className="text-4xl">{winMeta.emoji}</span>
+                    <div className="text-left">
+                      <div className="text-xs font-extrabold uppercase tracking-widest text-white/85">
+                        {winMeta.label.toUpperCase()}
+                      </div>
+                      <div className="text-2xl sm:text-4xl font-black text-white">
+                        {questionResults.correctOptionText}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Option Distribution & Per-Question Player Scores */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left: 4 Color Option Breakdown */}
+              <div className="lg:col-span-5 bg-slate-900/90 border border-white/15 rounded-3xl p-6 space-y-4">
+                <h3 className="text-base font-extrabold text-white">Cevap Dağılımı</h3>
+                {(['RED', 'BLUE', 'YELLOW', 'GREEN'] as OptionColor[]).map((col) => {
+                  const m = COLOR_META[col];
+                  const count = questionResults.colorCounts[col] || 0;
+                  const isCorrect = questionResults.correctColor === col;
+                  const optText =
+                    col === 'RED'
+                      ? currentQuestion.redOption
+                      : col === 'BLUE'
+                      ? currentQuestion.blueOption
+                      : col === 'YELLOW'
+                      ? currentQuestion.yellowOption
+                      : currentQuestion.greenOption;
+
+                  return (
+                    <div
+                      key={col}
+                      className={`p-4 rounded-2xl border flex items-center justify-between ${
+                        isCorrect
+                          ? `${m.bgClass} border-white text-white shadow-lg`
+                          : 'bg-slate-950/70 border-white/10 text-slate-300 opacity-75'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-xl">{m.emoji}</span>
+                        <div className="truncate">
+                          <span className="font-extrabold">{m.label}: </span>
+                          <span>{optText}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isCorrect && <CheckCircle2 className="w-5 h-5 text-white" />}
+                        <span className="px-3 py-1 rounded-xl bg-black/30 font-extrabold text-sm">
+                          {count} Oyuncu
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Right: SORU SONUÇLARI (Ahmet +92, Ayşe +84...) */}
+              <div className="lg:col-span-7 bg-slate-900/90 border border-white/15 rounded-3xl p-6 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-extrabold text-white">SORU SONUÇLARI</h3>
+                    <span className="text-xs text-slate-400">
+                      Sunucu cevap zamanına göre sıralı
+                    </span>
+                  </div>
+
+                  {questionResults.results.length === 0 ? (
+                    <div className="py-12 text-center text-slate-400 text-sm">
+                      Bu soruya cevap veren oyuncu olmadı.
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                      {questionResults.results.map((r) => {
+                        const colMeta = r.selectedColor ? COLOR_META[r.selectedColor] : null;
+                        return (
+                          <div
+                            key={r.playerId}
+                            className="p-3.5 rounded-2xl bg-slate-950/80 border border-white/10 flex items-center justify-between gap-4"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-lg">
+                                {colMeta ? colMeta.emoji : '⚪'}
+                              </span>
+                              <div>
+                                <div className="font-extrabold text-white text-base">
+                                  {r.playerName}
+                                </div>
+                                <div className="text-xs text-slate-400">
+                                  {r.elapsedSeconds !== null
+                                    ? `Cevap zamanı: ${r.elapsedSeconds.toFixed(3)} saniye`
+                                    : 'Cevap vermedi'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <span
+                                className={`px-3.5 py-1.5 rounded-xl font-black text-base ${
+                                  r.score > 0
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                    : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                                }`}
+                              >
+                                +{r.score}
+                              </span>
+                              <span className="text-xs text-slate-400 w-24 text-right">
+                                Toplam: <strong className="text-white">{r.totalScore}</strong>
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-white/10 flex justify-end gap-3">
+                  <button
+                    onClick={() => emitAdminAction('admin_show_leaderboard')}
+                    className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center gap-2 transition"
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    <span>CANLI SKOR TABLOSU</span>
+                  </button>
+                  <button
+                    onClick={() => emitAdminAction('admin_next_question')}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center gap-2 transition"
+                  >
+                    <SkipForward className="w-4 h-4" />
+                    <span>SONRAKİ SORU</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------------- */}
+        {/* STATE 6: LEADERBOARD (Section 16)                                   */}
+        {/* ------------------------------------------------------------------- */}
+        {game.status === 'LEADERBOARD' && (
+          <div className="max-w-3xl w-full mx-auto bg-slate-900/95 border border-white/15 rounded-3xl p-8 shadow-2xl space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
+                  <Trophy className="w-6 h-6 text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-black text-white">
+                    CANLI SKOR TABLOSU
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    {game.currentQuestionIndex + 1}. soru sonunda toplam puan durumu
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => emitAdminAction('admin_next_question')}
+                className="px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/25 transition"
+              >
+                <span>
+                  {game.currentQuestionIndex + 1 >= game.totalQuestions
+                    ? 'FİNAL SONUÇLARI'
+                    : 'SONRAKİ SORU'}
+                </span>
+                <SkipForward className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {leaderboard.map((p, idx) => (
+                <div
+                  key={p.id}
+                  className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
+                    idx === 0
+                      ? 'bg-gradient-to-r from-amber-500/25 to-yellow-500/10 border-amber-400/50 scale-[1.01]'
+                      : idx === 1
+                      ? 'bg-slate-800/90 border-slate-500/40'
+                      : idx === 2
+                      ? 'bg-amber-900/20 border-amber-700/40'
+                      : 'bg-slate-950/80 border-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="w-9 h-9 rounded-xl bg-black/30 font-black text-base flex items-center justify-center">
+                      {idx + 1}.
+                    </span>
+                    <span className="text-lg sm:text-xl font-extrabold text-white">
+                      {p.name}
+                    </span>
+                  </div>
+                  <div className="text-xl sm:text-2xl font-black text-amber-300 font-mono">
+                    {p.totalScore} <span className="text-xs font-sans text-slate-400">puan</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------------- */}
+        {/* STATE 7: FINISHED / FINAL SONUÇ EKRANI (Section 17 & 35)            */}
+        {/* ------------------------------------------------------------------- */}
+        {game.status === 'FINISHED' && (
+          <div className="space-y-8">
+            <div className="bg-slate-900/95 border border-white/15 rounded-3xl p-8 sm:p-10 text-center shadow-2xl">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-extrabold uppercase tracking-widest mb-4">
+                <Trophy className="w-4 h-4" />
+                YARIŞMA TAMAMLANDI
+              </div>
+              <h1 className="text-3xl sm:text-5xl font-black text-white mb-8">
+                🏆 YARIŞMA SONUÇLARI
+              </h1>
+
+              {/* Highlighted Winner Card */}
+              {leaderboard[0] && (
+                <div className="max-w-lg mx-auto mb-8 p-6 rounded-3xl bg-gradient-to-br from-amber-500/30 via-yellow-500/20 to-indigo-600/20 border-2 border-amber-400 shadow-2xl animate-float">
+                  <div className="text-4xl mb-2">👑 🥇</div>
+                  <div className="text-xs font-extrabold uppercase tracking-widest text-amber-300">
+                    YARIŞMA BİRİNCİSİ
+                  </div>
+                  <div className="text-3xl sm:text-4xl font-black text-white mt-1">
+                    1. {leaderboard[0].name}
+                  </div>
+                  <div className="text-2xl font-extrabold text-amber-300 mt-1">
+                    {leaderboard[0].totalScore} puan
+                  </div>
+                </div>
+              )}
+
+              {/* Full Final Ranking List */}
+              <div className="max-w-2xl mx-auto space-y-3 text-left">
+                {leaderboard.map((p, idx) => {
+                  const medal =
+                    idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+                  return (
+                    <div
+                      key={p.id}
+                      className={`p-4 rounded-2xl border flex items-center justify-between ${
+                        idx === 0
+                          ? 'bg-amber-500/20 border-amber-400/60'
+                          : idx === 1
+                          ? 'bg-slate-800/80 border-slate-400/40'
+                          : idx === 2
+                          ? 'bg-amber-900/25 border-amber-600/40'
+                          : 'bg-slate-950/80 border-white/10'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 text-lg font-extrabold text-white">
+                        <span className="w-8 text-center">{medal}</span>
+                        <span>
+                          {idx + 1}. {p.name}
+                        </span>
+                      </div>
+                      <div className="text-lg font-black text-amber-300">
+                        {p.totalScore} puan
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-8 flex justify-center gap-4">
+                <Link
+                  to="/admin"
+                  className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm transition"
+                >
+                  Yönetici Paneline Dön
+                </Link>
+              </div>
+            </div>
+
+            {/* Section 35: Simultaneous Answer Timestamp Log for Admin */}
+            {allAnswers.length > 0 && (
+              <div className="bg-slate-900/90 border border-white/15 rounded-3xl p-6">
+                <h3 className="text-base font-extrabold text-white mb-1">
+                  Detaylı Sunucu Cevap Zamanları (Timestamp Kayıtları)
+                </h3>
+                <p className="text-xs text-slate-400 mb-4">
+                  Aynı anda gönderilen cevaplar milisaniye hassasiyetinde sunucu alış zamanına göre sıralanmıştır.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/10 text-slate-400 uppercase">
+                        <th className="py-2.5 px-3">Oyuncu</th>
+                        <th className="py-2.5 px-3">Seçilen Renk</th>
+                        <th className="py-2.5 px-3">Cevap Zamanı</th>
+                        <th className="py-2.5 px-3">Durum</th>
+                        <th className="py-2.5 px-3 text-right">Kazanılan Puan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {allAnswers.map((a) => {
+                        const m = COLOR_META[a.selectedColor];
+                        return (
+                          <tr key={a.id}>
+                            <td className="py-2.5 px-3 font-bold text-white">
+                              {a.playerName || a.playerId}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {m.emoji} {m.label}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-indigo-300">
+                              {a.elapsedSeconds.toFixed(3)} saniye
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {a.isCorrect ? (
+                                <span className="text-emerald-400 font-bold">Doğru</span>
+                              ) : (
+                                <span className="text-rose-400 font-bold">Yanlış</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-extrabold text-white">
+                              +{a.score}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
