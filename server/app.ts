@@ -682,7 +682,7 @@ app.post('/api/admin/questions', requireAdmin, (req, res) => {
 app.put('/api/admin/questions/:id', requireAdmin, (req, res) => {
   const { text, redOption, blueOption, yellowOption, greenOption, correctColor, duration, mediaUrl, category } =
     req.body || {};
-  const updated = updateQuestion(req.params.id, {
+  const updated = updateQuestion(String(req.params.id), {
     text,
     redOption,
     blueOption,
@@ -701,7 +701,7 @@ app.put('/api/admin/questions/:id', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/admin/questions/:id', requireAdmin, (req, res) => {
-  const ok = deleteQuestion(req.params.id);
+  const ok = deleteQuestion(String(req.params.id));
   if (!ok) {
     res.status(404).json({ error: 'Soru bulunamadı.' });
     return;
@@ -710,7 +710,7 @@ app.delete('/api/admin/questions/:id', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/questions/:id/duplicate', requireAdmin, (req, res) => {
-  const copy = duplicateQuestion(req.params.id);
+  const copy = duplicateQuestion(String(req.params.id));
   if (!copy) {
     res.status(404).json({ error: 'Soru bulunamadı.' });
     return;
@@ -724,7 +724,7 @@ app.get('/api/admin/quizzes', requireAdmin, (_req, res) => {
 });
 
 app.get('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
-  const quiz = getQuizById(req.params.id);
+  const quiz = getQuizById(String(req.params.id));
   if (!quiz) {
     res.status(404).json({ error: 'Quiz bulunamadı.' });
     return;
@@ -748,7 +748,7 @@ app.put('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
     res.status(400).json({ error: 'Quiz adı ve en az 1 soru seçimi zorunludur.' });
     return;
   }
-  const updated = updateQuiz(req.params.id, { title, description, questionIds });
+  const updated = updateQuiz(String(req.params.id), { title, description, questionIds });
   if (!updated) {
     res.status(404).json({ error: 'Quiz bulunamadı.' });
     return;
@@ -757,7 +757,7 @@ app.put('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
-  const ok = deleteQuiz(req.params.id);
+  const ok = deleteQuiz(String(req.params.id));
   if (!ok) {
     res.status(404).json({ error: 'Quiz bulunamadı.' });
     return;
@@ -766,7 +766,7 @@ app.delete('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/quizzes/:id/duplicate', requireAdmin, (req, res) => {
-  const copy = duplicateQuiz(req.params.id);
+  const copy = duplicateQuiz(String(req.params.id));
   if (!copy) {
     res.status(404).json({ error: 'Quiz bulunamadı.' });
     return;
@@ -806,7 +806,7 @@ app.post('/api/admin/games', requireAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/games/:gameCode', requireAdmin, async (req, res) => {
-  const game = getGameByCode(req.params.gameCode);
+  const game = getGameByCode(String(req.params.gameCode));
   if (!game) {
     res.status(404).json({ error: 'Oyun bulunamadı.' });
     return;
@@ -833,7 +833,7 @@ app.get('/api/admin/games/:gameCode', requireAdmin, async (req, res) => {
 });
 
 app.get('/api/games/code/:gameCode', async (req, res) => {
-  const game = getGameByCode(req.params.gameCode);
+  const game = getGameByCode(String(req.params.gameCode));
   if (!game) {
     res.status(404).json({ error: 'Bu oyun koduna ait aktif bir yarışma bulunamadı.' });
     return;
@@ -867,7 +867,7 @@ app.get('/api/games/code/:gameCode', async (req, res) => {
 // ============================================================================
 
 app.get('/api/realtime/state/:gameCode', (req, res) => {
-  const game = getGameByCode(req.params.gameCode);
+  const game = getGameByCode(String(req.params.gameCode));
   if (!game) {
     res.status(404).json({ ok: false, error: 'Oyun bulunamadı.' });
     return;
