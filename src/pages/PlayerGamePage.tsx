@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, XCircle, Trophy, Clock, Pause, Wifi, Sparkles } from 'lucide-react';
-import { getSocket } from '../utils/api.ts';
+import { CheckCircle2, XCircle, Clock, Pause, Wifi, Sparkles } from 'lucide-react';
+import { apiFetch, getSocket } from '../utils/api.ts';
 import { useServerTimer } from '../utils/useServerTimer.ts';
 import { soundManager } from '../utils/sound.ts';
 import {
@@ -24,10 +24,11 @@ export const PlayerGamePage: React.FC = () => {
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Track current question answer submission on phone
   const [answeredQuestionId, setAnsweredQuestionId] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<OptionColor | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const prevStatusRef = useRef<string | null>(null);
 
   const storageKey = (code: string) => `kahoot_player_${code}_${sessionKeySuffix}`;
 
@@ -39,14 +40,50 @@ export const PlayerGamePage: React.FC = () => {
     playTickSound: false,
   });
 
-  // Update gameCodeInput if routeCode changes
   useEffect(() => {
     if (routeCode) {
       setGameCodeInput(routeCode);
     }
   }, [routeCode]);
 
-  // Attempt automatic reconnection if player session exists for routeCode
+  const applyPlayerSnapshot = (nextSnap: GameStateSnapshot, currentPlayerId?: string) => {
+    const pid = currentPlayerId || joinedPlayer?.id;
+    if (nextSnap.currentQuestion) {
+      setAnsweredQuestionId((prevId) => {
+        if (prevId && prevId !== nextSnap.currentQuestion?.id) {
+          setSelectedColor(null);
+          return null;
+        }
+        return prevId;
+      });
+    }
+
+    if (
+      pid &&
+      nextSnap.game.status === 'ANSWER_REVEAL' &&
+      prevStatusRef.current !== 'ANSWER_REVEAL' &&
+      nextSnap.questionResults
+    ) {
+      const myRes = nextSnap.questionResults.results.find((r) => r.playerId === pid);
+      if (myRes?.isCorrect) {
+        soundManager.playCorrect();
+      } else {
+        soundManager.playWrong();
+      }
+    }
+
+    prevStatusRef.current = nextSnap.game.status;
+    setSnapshot(nextSnap);
+
+    if (pid) {
+      const updatedMe = nextSnap.players.find((p) => p.id === pid);
+      if (updatedMe) {
+        setJoinedPlayer(updatedMe);
+      }
+    }
+  };
+
+  // Automatic reconnection on mount if session exists
   useEffect(() => {
     const code = (routeCode || gameCodeInput).trim();
     if (!code) return;
@@ -61,125 +98,94 @@ export const PlayerGamePage: React.FC = () => {
         connectPlayerToGame(code, saved.name, saved.playerId);
       }
     } catch {
-      // ignore invalid storage
+      // ignore
     }
   }, [routeCode]);
 
-  // Listen to real-time socket events once joined
+  // Poll state every 800ms (works on Vercel serverless + local) AND listen on Socket.IO
   useEffect(() => {
-    const socket = getSocket();
+    if (!joinedPlayer || !snapshot) return;
+    const code = snapshot.game.gameCode;
 
-    const handleSync = (nextSnap: GameStateSnapshot) => {
-      setSnapshot((prev) => {
-        if (
-          joinedPlayer &&
-          nextSnap.game.gameCode !==
-            (prev?.game.gameCode || gameCodeInput.trim())
-        ) {
-          return prev;
-        }
-        return nextSnap;
-      });
-
-      if (joinedPlayer) {
-        const updatedMe = nextSnap.players.find((p) => p.id === joinedPlayer.id);
-        if (updatedMe) {
-          setJoinedPlayer(updatedMe);
-        }
-      }
-    };
-
-    const handleQuestionStarted = (nextSnap: GameStateSnapshot) => {
-      handleSync(nextSnap);
-      if (nextSnap.currentQuestion) {
-        // Reset selection if it's a new question
-        setAnsweredQuestionId((prevId) => {
-          if (prevId !== nextSnap.currentQuestion?.id) {
-            setSelectedColor(null);
-            return null;
+    const pollInterval = setInterval(() => {
+      apiFetch<{ ok: boolean; snapshot: GameStateSnapshot }>(
+        `/api/realtime/state/${code}`
+      )
+        .then((res) => {
+          if (res.ok && res.snapshot) {
+            applyPlayerSnapshot(res.snapshot, joinedPlayer.id);
           }
-          return prevId;
-        });
-      }
-    };
+        })
+        .catch(() => {});
+    }, 800);
 
-    const handleAnswerRevealed = (nextSnap: GameStateSnapshot) => {
-      handleSync(nextSnap);
-      if (joinedPlayer && nextSnap.questionResults) {
-        const myRes = nextSnap.questionResults.results.find(
-          (r) => r.playerId === joinedPlayer.id
-        );
-        if (myRes?.isCorrect) {
-          soundManager.playCorrect();
-        } else {
-          soundManager.playWrong();
-        }
-      }
-    };
-
-    const handleReconnect = () => {
-      if (joinedPlayer && snapshot) {
-        connectPlayerToGame(snapshot.game.gameCode, joinedPlayer.name, joinedPlayer.id);
+    const socket = getSocket();
+    const handleSync = (nextSnap: GameStateSnapshot) => {
+      if (nextSnap.game.gameCode === code) {
+        applyPlayerSnapshot(nextSnap, joinedPlayer.id);
       }
     };
 
     socket.on('game_state_sync', handleSync);
-    socket.on('question_started', handleQuestionStarted);
-    socket.on('answer_revealed', handleAnswerRevealed);
-    socket.on('connect', handleReconnect);
-
     return () => {
+      clearInterval(pollInterval);
       socket.off('game_state_sync', handleSync);
-      socket.off('question_started', handleQuestionStarted);
-      socket.off('answer_revealed', handleAnswerRevealed);
-      socket.off('connect', handleReconnect);
     };
-  }, [joinedPlayer, snapshot, gameCodeInput]);
+  }, [joinedPlayer?.id, snapshot?.game.gameCode]);
 
-  const connectPlayerToGame = (code: string, name: string, existingPlayerId?: string) => {
+  const connectPlayerToGame = async (
+    code: string,
+    name: string,
+    existingPlayerId?: string
+  ) => {
     setJoining(true);
     setError(null);
 
-    const socket = getSocket();
-    socket.emit(
-      'join_game',
-      {
-        gameCode: code.trim(),
-        name: name.trim(),
-        playerId: existingPlayerId,
-      },
-      (res: {
+    try {
+      const res = await apiFetch<{
         ok: boolean;
         error?: string;
-        player?: Player;
-        snapshot?: GameStateSnapshot;
+        player: Player;
+        snapshot: GameStateSnapshot;
         alreadyAnsweredCurrent?: boolean;
         currentAnswer?: { questionId: string; selectedColor: OptionColor };
-      }) => {
-        setJoining(false);
-        if (!res.ok || !res.player || !res.snapshot) {
-          setError(res.error || 'Oyuna katılınamadı.');
-          return;
-        }
+      }>('/api/realtime/join', {
+        method: 'POST',
+        body: JSON.stringify({
+          gameCode: code.trim(),
+          name: name.trim(),
+          playerId: existingPlayerId,
+        }),
+      });
 
-        localStorage.setItem(
-          storageKey(code.trim()),
-          JSON.stringify({
-            playerId: res.player.id,
-            name: res.player.name,
-            gameCode: code.trim(),
-          })
-        );
+      localStorage.setItem(
+        storageKey(code.trim()),
+        JSON.stringify({
+          playerId: res.player.id,
+          name: res.player.name,
+          gameCode: code.trim(),
+        })
+      );
 
-        setJoinedPlayer(res.player);
-        setSnapshot(res.snapshot);
+      setJoinedPlayer(res.player);
+      applyPlayerSnapshot(res.snapshot, res.player.id);
 
-        if (res.alreadyAnsweredCurrent && res.currentAnswer) {
-          setAnsweredQuestionId(res.currentAnswer.questionId);
-          setSelectedColor(res.currentAnswer.selectedColor);
-        }
+      if (res.alreadyAnsweredCurrent && res.currentAnswer) {
+        setAnsweredQuestionId(res.currentAnswer.questionId);
+        setSelectedColor(res.currentAnswer.selectedColor);
       }
-    );
+
+      // Also join Socket.IO room if available
+      getSocket().emit('join_game', {
+        gameCode: code.trim(),
+        name: res.player.name,
+        playerId: res.player.id,
+      });
+    } catch (err: any) {
+      setError(err.message || 'Oyuna katılınamadı.');
+    } finally {
+      setJoining(false);
+    }
   };
 
   const handleJoinSubmit = (e: React.FormEvent) => {
@@ -195,7 +201,6 @@ export const PlayerGamePage: React.FC = () => {
       return;
     }
 
-    // Check if there is a saved playerId for this code + name
     let existingId: string | undefined;
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey(cleanedCode)) || 'null');
@@ -207,7 +212,7 @@ export const PlayerGamePage: React.FC = () => {
     connectPlayerToGame(cleanedCode, cleanedName, existingId);
   };
 
-  const handleSelectColor = (color: OptionColor) => {
+  const handleSelectColor = async (color: OptionColor) => {
     if (!snapshot || !joinedPlayer || !snapshot.currentQuestion) return;
     if (snapshot.game.status !== 'QUESTION') return;
     if (answeredQuestionId === snapshot.currentQuestion.id || submitting) return;
@@ -216,25 +221,31 @@ export const PlayerGamePage: React.FC = () => {
     setSelectedColor(color);
     setAnsweredQuestionId(snapshot.currentQuestion.id);
 
-    getSocket().emit(
-      'submit_answer',
-      {
-        gameCode: snapshot.game.gameCode,
-        playerId: joinedPlayer.id,
-        selectedColor: color,
-      },
-      (res: { ok: boolean; error?: string }) => {
-        setSubmitting(false);
-        if (!res.ok && res.error && !res.error.includes('zaten')) {
-          setError(res.error);
-        }
+    try {
+      const res = await apiFetch<{
+        ok: boolean;
+        error?: string;
+        snapshot?: GameStateSnapshot;
+      }>('/api/realtime/submit-answer', {
+        method: 'POST',
+        body: JSON.stringify({
+          gameCode: snapshot.game.gameCode,
+          playerId: joinedPlayer.id,
+          selectedColor: color,
+        }),
+      });
+      if (res.snapshot) {
+        applyPlayerSnapshot(res.snapshot, joinedPlayer.id);
       }
-    );
+    } catch (err: any) {
+      if (!String(err.message).includes('zaten')) {
+        setError(err.message);
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  // =========================================================================
-  // VIEW 1: NOT JOINED YET -> "Oyuna Katıl" Form (Section 8)
-  // =========================================================================
   if (!joinedPlayer || !snapshot) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-900 text-white flex flex-col justify-center items-center p-5">
@@ -310,12 +321,8 @@ export const PlayerGamePage: React.FC = () => {
     Boolean(currentQuestion && answeredQuestionId === currentQuestion.id) ||
     Boolean(currentQuestion && myPlayer.lastAnswer?.questionId === currentQuestion.id);
 
-  // =========================================================================
-  // VIEW 2: CONNECTED PLAYER PHONE INTERFACE (Distraction-free Mobile UI)
-  // =========================================================================
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-between select-none">
-      {/* Compact Top Status Bar (Player Name & Total Score) */}
       <header className="bg-slate-900 border-b border-white/10 px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <Wifi className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -330,11 +337,7 @@ export const PlayerGamePage: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Dynamic Game Body */}
       <main className="flex-1 flex flex-col p-4 max-w-lg w-full mx-auto">
-        {/* ----------------------------------------------------------------- */}
-        {/* STATE: LOBBY & STARTING                                           */}
-        {/* ----------------------------------------------------------------- */}
         {(game.status === 'LOBBY' || game.status === 'STARTING') && (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-5">
             <div className="w-20 h-20 rounded-3xl bg-indigo-600/20 border-2 border-indigo-400/40 flex items-center justify-center animate-bounce">
@@ -356,9 +359,6 @@ export const PlayerGamePage: React.FC = () => {
           </div>
         )}
 
-        {/* ----------------------------------------------------------------- */}
-        {/* STATE: PAUSED (Section 19)                                        */}
-        {/* ----------------------------------------------------------------- */}
         {game.status === 'PAUSED' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 space-y-4">
             <div className="w-20 h-20 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center">
@@ -373,12 +373,8 @@ export const PlayerGamePage: React.FC = () => {
           </div>
         )}
 
-        {/* ----------------------------------------------------------------- */}
-        {/* STATE: QUESTION (Section 10 - 4 Huge Mobile Color Buttons)        */}
-        {/* ----------------------------------------------------------------- */}
         {game.status === 'QUESTION' && currentQuestion && (
           <div className="flex-1 flex flex-col justify-between gap-4">
-            {/* Simple Question Header on Phone */}
             <div className="bg-slate-900 border border-white/15 rounded-2xl p-4 text-center shrink-0">
               <div className="flex items-center justify-between text-xs font-extrabold uppercase tracking-wider text-indigo-300 mb-1.5">
                 <span>SORU {currentQuestion.index + 1}</span>
@@ -398,7 +394,6 @@ export const PlayerGamePage: React.FC = () => {
               </p>
             </div>
 
-            {/* If player already answered -> Lock & Show "Cevabınız alındı." */}
             {hasAnsweredCurrent ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center bg-slate-900/90 border border-white/15 rounded-3xl p-8 space-y-4">
                 {(() => {
@@ -421,7 +416,6 @@ export const PlayerGamePage: React.FC = () => {
                 </p>
               </div>
             ) : (
-              /* 4 Large Color Touch Buttons */
               <div className="flex-1 grid grid-cols-2 gap-3.5 min-h-[340px]">
                 {(['RED', 'BLUE', 'YELLOW', 'GREEN'] as OptionColor[]).map((col) => {
                   const m = COLOR_META[col];
@@ -444,9 +438,6 @@ export const PlayerGamePage: React.FC = () => {
           </div>
         )}
 
-        {/* ----------------------------------------------------------------- */}
-        {/* STATE: ANSWER_REVEAL & LEADERBOARD (Section 15 & 16)              */}
-        {/* ----------------------------------------------------------------- */}
         {(game.status === 'ANSWER_REVEAL' || game.status === 'LEADERBOARD') && (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-4 space-y-6">
             {(() => {
@@ -519,9 +510,6 @@ export const PlayerGamePage: React.FC = () => {
           </div>
         )}
 
-        {/* ----------------------------------------------------------------- */}
-        {/* STATE: FINISHED (Section 17)                                      */}
-        {/* ----------------------------------------------------------------- */}
         {game.status === 'FINISHED' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
             <div className="w-full bg-slate-900 border border-white/15 rounded-3xl p-8 shadow-2xl space-y-5">

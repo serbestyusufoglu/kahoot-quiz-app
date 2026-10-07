@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import QRCode from 'qrcode';
 import {
@@ -40,6 +40,8 @@ export const AdminLiveGamePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(soundManager.enabled);
+  const prevStatusRef = useRef<string | null>(null);
+  const prevQuestionIdxRef = useRef<number>(-1);
 
   const remainingSeconds = useServerTimer({
     status: snapshot?.game.status,
@@ -48,6 +50,35 @@ export const AdminLiveGamePage: React.FC = () => {
     serverTime: snapshot?.serverTime,
     playTickSound: true,
   });
+
+  const applySnapshotWithSound = (nextSnap: GameStateSnapshot) => {
+    const prevStatus = prevStatusRef.current;
+    const prevQIdx = prevQuestionIdxRef.current;
+    const nextStatus = nextSnap.game.status;
+    const nextQIdx = nextSnap.game.currentQuestionIndex;
+
+    if (
+      nextStatus === 'QUESTION' &&
+      (prevStatus !== 'QUESTION' || prevQIdx !== nextQIdx)
+    ) {
+      soundManager.playQuestionStart();
+    } else if (nextStatus === 'ANSWER_REVEAL' && prevStatus === 'QUESTION') {
+      soundManager.playTimeUp();
+    } else if (nextStatus === 'FINISHED' && prevStatus !== 'FINISHED') {
+      soundManager.playWinner();
+      if (gameCode) {
+        apiFetch(`/api/admin/games/${gameCode}`)
+          .then((r) => {
+            if (r.allAnswers) setAllAnswers(r.allAnswers);
+          })
+          .catch(() => {});
+      }
+    }
+
+    prevStatusRef.current = nextStatus;
+    prevQuestionIdxRef.current = nextQIdx;
+    setSnapshot(nextSnap);
+  };
 
   useEffect(() => {
     const token = getAdminToken();
@@ -67,91 +98,91 @@ export const AdminLiveGamePage: React.FC = () => {
       .then((url) => setQrDataUrl(url))
       .catch(() => {});
 
-    // Initial fetch
+    // Initial fetch via REST
     apiFetch(`/api/admin/games/${gameCode}`)
       .then((res) => {
-        if (res.snapshot) setSnapshot(res.snapshot);
+        if (res.snapshot) applySnapshotWithSound(res.snapshot);
         if (res.allAnswers) setAllAnswers(res.allAnswers);
       })
       .catch((err) => setError(err.message));
 
-    const socket = getSocket();
+    // Polling loop for serverless compatibility (Vercel) + timer state progression
+    const pollInterval = setInterval(() => {
+      apiFetch<{ ok: boolean; snapshot: GameStateSnapshot }>(
+        `/api/realtime/state/${gameCode}`
+      )
+        .then((res) => {
+          if (res.ok && res.snapshot) {
+            applySnapshotWithSound(res.snapshot);
+          }
+        })
+        .catch(() => {});
+    }, 800);
 
+    // Optional Socket.IO for instant local updates
+    const socket = getSocket();
     const joinAdminRoom = () => {
       socket.emit(
         'admin_join_game',
         { gameCode, token },
-        (res: { ok: boolean; error?: string; snapshot?: GameStateSnapshot }) => {
-          if (!res.ok) {
-            setError(res.error || 'Oyun odasına bağlanılamadı.');
-          } else if (res.snapshot) {
-            setSnapshot(res.snapshot);
+        (res: { ok: boolean; snapshot?: GameStateSnapshot }) => {
+          if (res?.ok && res.snapshot) {
+            applySnapshotWithSound(res.snapshot);
           }
         }
       );
     };
-
     joinAdminRoom();
     socket.on('connect', joinAdminRoom);
 
     const handleSync = (nextSnap: GameStateSnapshot) => {
       if (nextSnap.game.gameCode === gameCode) {
-        setSnapshot(nextSnap);
+        applySnapshotWithSound(nextSnap);
       }
     };
-
-    const handleQuestionStarted = (nextSnap: GameStateSnapshot) => {
-      if (nextSnap.game.gameCode === gameCode) {
-        setSnapshot(nextSnap);
-        soundManager.playQuestionStart();
-      }
-    };
-
-    const handleAnswerRevealed = (nextSnap: GameStateSnapshot) => {
-      if (nextSnap.game.gameCode === gameCode) {
-        setSnapshot(nextSnap);
-        soundManager.playTimeUp();
-      }
-    };
-
-    const handleGameFinished = (nextSnap: GameStateSnapshot) => {
-      if (nextSnap.game.gameCode === gameCode) {
-        setSnapshot(nextSnap);
-        soundManager.playWinner();
-        apiFetch(`/api/admin/games/${gameCode}`)
-          .then((r) => {
-            if (r.allAnswers) setAllAnswers(r.allAnswers);
-          })
-          .catch(() => {});
-      }
-    };
-
     socket.on('game_state_sync', handleSync);
-    socket.on('question_started', handleQuestionStarted);
-    socket.on('answer_revealed', handleAnswerRevealed);
-    socket.on('game_finished', handleGameFinished);
 
     return () => {
+      clearInterval(pollInterval);
       socket.off('connect', joinAdminRoom);
       socket.off('game_state_sync', handleSync);
-      socket.off('question_started', handleQuestionStarted);
-      socket.off('answer_revealed', handleAnswerRevealed);
-      socket.off('game_finished', handleGameFinished);
     };
   }, [gameCode, navigate]);
 
-  const emitAdminAction = (event: string, extraPayload: Record<string, any> = {}) => {
-    const token = getAdminToken();
-    if (!token || !gameCode) return;
-    getSocket().emit(
-      event,
-      { gameCode, token, ...extraPayload },
-      (res: { ok: boolean; error?: string }) => {
-        if (!res?.ok && res?.error) {
-          setError(res.error);
+  const emitAdminAction = async (
+    event: string,
+    extraPayload: Record<string, any> = {}
+  ) => {
+    if (!gameCode) return;
+    setError(null);
+
+    const endpointMap: Record<string, string> = {
+      admin_start_game: '/api/realtime/start-game',
+      admin_end_question: '/api/realtime/end-question',
+      admin_show_leaderboard: '/api/realtime/show-leaderboard',
+      admin_next_question: '/api/realtime/next-question',
+      admin_toggle_pause: '/api/realtime/toggle-pause',
+      admin_toggle_auto_advance: '/api/realtime/toggle-auto-advance',
+      admin_finish_game: '/api/realtime/finish-game',
+    };
+
+    const endpoint = endpointMap[event];
+    if (!endpoint) return;
+
+    try {
+      const res = await apiFetch<{ ok: boolean; snapshot?: GameStateSnapshot; error?: string }>(
+        endpoint,
+        {
+          method: 'POST',
+          body: JSON.stringify({ gameCode, ...extraPayload }),
         }
+      );
+      if (res.snapshot) {
+        applySnapshotWithSound(res.snapshot);
       }
-    );
+    } catch (err: any) {
+      setError(err.message || 'İşlem gerçekleştirilemedi.');
+    }
   };
 
   const handleCopyLink = () => {
@@ -182,12 +213,9 @@ export const AdminLiveGamePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white flex flex-col">
-      {/* ===================================================================== */}
-      {/* TOP ADMIN LIVE CONTROL PANEL (Section 18)                             */}
-      {/* ===================================================================== */}
+      {/* TOP ADMIN LIVE CONTROL PANEL */}
       <header className="bg-slate-900/95 backdrop-blur-md border-b border-white/15 px-4 sm:px-6 py-3.5 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          {/* Left Info: Back button + Quiz Title + Question Counter */}
           <div className="flex items-center gap-3">
             <Link
               to="/admin"
@@ -244,9 +272,7 @@ export const AdminLiveGamePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Controls: Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Sound toggle */}
             <button
               onClick={handleToggleSound}
               title={soundEnabled ? 'Sesleri Kapat' : 'Sesleri Aç'}
@@ -259,7 +285,6 @@ export const AdminLiveGamePage: React.FC = () => {
               {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </button>
 
-            {/* Auto-advance toggle */}
             <button
               onClick={() =>
                 emitAdminAction('admin_toggle_auto_advance', {
@@ -275,7 +300,6 @@ export const AdminLiveGamePage: React.FC = () => {
               Otomatik Geçiş: {game.autoAdvance ? 'Açık' : 'Kapalı'}
             </button>
 
-            {/* LOBBY Controls */}
             {game.status === 'LOBBY' && (
               <button
                 onClick={() => emitAdminAction('admin_start_game')}
@@ -286,7 +310,6 @@ export const AdminLiveGamePage: React.FC = () => {
               </button>
             )}
 
-            {/* QUESTION / PAUSED Controls */}
             {(game.status === 'QUESTION' || game.status === 'PAUSED') && (
               <>
                 <button
@@ -328,7 +351,6 @@ export const AdminLiveGamePage: React.FC = () => {
               </>
             )}
 
-            {/* ANSWER_REVEAL Controls */}
             {game.status === 'ANSWER_REVEAL' && (
               <>
                 <button
@@ -352,7 +374,6 @@ export const AdminLiveGamePage: React.FC = () => {
               </>
             )}
 
-            {/* LEADERBOARD Controls */}
             {game.status === 'LEADERBOARD' && (
               <button
                 onClick={() => emitAdminAction('admin_next_question')}
@@ -367,7 +388,6 @@ export const AdminLiveGamePage: React.FC = () => {
               </button>
             )}
 
-            {/* OYUNU BİTİR Button */}
             {game.status !== 'FINISHED' && (
               <button
                 onClick={() => emitAdminAction('admin_finish_game')}
@@ -381,23 +401,16 @@ export const AdminLiveGamePage: React.FC = () => {
         </div>
       </header>
 
-      {/* ===================================================================== */}
-      {/* MAIN BIG SCREEN AREA (Projector / Smartboard View)                    */}
-      {/* ===================================================================== */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 sm:p-8 flex flex-col justify-center">
-        {/* ------------------------------------------------------------------- */}
-        {/* STATE 1: LOBBY (Section 7, 8, 25)                                   */}
-        {/* ------------------------------------------------------------------- */}
+        {/* STATE 1: LOBBY */}
         {game.status === 'LOBBY' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            {/* Left: QR Code & Game Code Card */}
             <div className="lg:col-span-5 bg-slate-900/90 border border-white/15 rounded-3xl p-8 text-center shadow-2xl flex flex-col items-center">
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-extrabold uppercase tracking-wider mb-4">
                 <Sparkles className="w-4 h-4" />
                 OYUNA KATIL
               </div>
 
-              {/* Large Scannable QR Code */}
               <div className="p-4 bg-white rounded-3xl shadow-2xl mb-4">
                 {qrDataUrl ? (
                   <img
@@ -438,7 +451,7 @@ export const AdminLiveGamePage: React.FC = () => {
                   className="flex-1 py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white flex items-center justify-center gap-2 transition"
                 >
                   {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  <span>{copied ? ' Bağlantı Kopyalandı!' : 'Katılım Linkini Kopyala'}</span>
+                  <span>{copied ? 'Bağlantı Kopyalandı!' : 'Katılım Linkini Kopyala'}</span>
                 </button>
                 <a
                   href={`/join/${game.gameCode}`}
@@ -452,7 +465,6 @@ export const AdminLiveGamePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Right: Live Connected Players List */}
             <div className="lg:col-span-7 bg-slate-900/80 border border-white/15 rounded-3xl p-8 min-h-[480px] flex flex-col justify-between shadow-2xl">
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/10">
@@ -479,7 +491,6 @@ export const AdminLiveGamePage: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Player Badges Grid */}
                 {players.length === 0 ? (
                   <div className="py-24 text-center space-y-3">
                     <div className="inline-flex p-4 rounded-full bg-white/5 text-slate-400 animate-pulse">
@@ -523,9 +534,7 @@ export const AdminLiveGamePage: React.FC = () => {
           </div>
         )}
 
-        {/* ------------------------------------------------------------------- */}
-        {/* STATE 2: STARTING                                                   */}
-        {/* ------------------------------------------------------------------- */}
+        {/* STATE 2: STARTING */}
         {game.status === 'STARTING' && (
           <div className="text-center py-20 space-y-6">
             <div className="inline-flex px-5 py-2 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 text-sm font-extrabold uppercase tracking-widest">
@@ -540,14 +549,11 @@ export const AdminLiveGamePage: React.FC = () => {
           </div>
         )}
 
-        {/* ------------------------------------------------------------------- */}
-        {/* STATE 3 & 4: QUESTION & PAUSED (Section 9, 11, 19)                  */}
-        {/* ------------------------------------------------------------------- */}
+        {/* STATE 3 & 4: QUESTION & PAUSED */}
         {(game.status === 'QUESTION' || game.status === 'PAUSED') && currentQuestion && (
           <div className="space-y-6 relative">
-            {/* Pause Overlay Banner */}
             {game.status === 'PAUSED' && (
-              <div className=" inset-0 z-20 bg-slate-950/85 backdrop-blur-md rounded-3xl border-2 border-amber-400/50 p-10 text-center flex flex-col items-center justify-center space-y-4">
+              <div className="inset-0 z-20 bg-slate-950/85 backdrop-blur-md rounded-3xl border-2 border-amber-400/50 p-10 text-center flex flex-col items-center justify-center space-y-4">
                 <Pause className="w-16 h-16 text-amber-400 animate-pulse" />
                 <h2 className="text-4xl sm:text-5xl font-black text-white tracking-wider">
                   OYUN DURAKLATILDI
@@ -565,9 +571,7 @@ export const AdminLiveGamePage: React.FC = () => {
               </div>
             )}
 
-            {/* Question Header & Synchronized Big Countdown */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-              {/* Timer Circle */}
               <div className="lg:col-span-2 flex justify-center">
                 <div
                   className={`w-28 h-28 sm:w-32 sm:h-32 rounded-full border-8 flex flex-col items-center justify-center shadow-2xl transition-colors ${
@@ -585,7 +589,6 @@ export const AdminLiveGamePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Question Card */}
               <div className="lg:col-span-8 bg-slate-900/95 border border-white/15 rounded-3xl p-8 text-center shadow-2xl">
                 <div className="inline-block px-4 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-extrabold uppercase tracking-widest mb-3">
                   SORU {currentQuestion.index + 1} / {currentQuestion.total}
@@ -595,7 +598,6 @@ export const AdminLiveGamePage: React.FC = () => {
                 </h1>
               </div>
 
-              {/* Live Answered Count Box */}
               <div className="lg:col-span-2 flex justify-center">
                 <div className="bg-slate-900/90 border border-white/15 rounded-3xl px-6 py-5 text-center w-full">
                   <div className="text-3xl sm:text-4xl font-black text-emerald-400">
@@ -608,7 +610,6 @@ export const AdminLiveGamePage: React.FC = () => {
               </div>
             </div>
 
-            {/* 4 Large Colored Option Blocks (Section 2 & 9) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
               {(
                 [
@@ -642,12 +643,9 @@ export const AdminLiveGamePage: React.FC = () => {
           </div>
         )}
 
-        {/* ------------------------------------------------------------------- */}
-        {/* STATE 5: ANSWER_REVEAL (Section 15)                                 */}
-        {/* ------------------------------------------------------------------- */}
+        {/* STATE 5: ANSWER_REVEAL */}
         {game.status === 'ANSWER_REVEAL' && currentQuestion && questionResults && (
           <div className="space-y-8">
-            {/* Winning Color Banner */}
             <div className="bg-slate-900/95 border border-white/15 rounded-3xl p-8 text-center shadow-2xl">
               <div className="text-xs font-extrabold uppercase tracking-widest text-emerald-400 mb-2">
                 DOĞRU CEVAP
@@ -676,9 +674,7 @@ export const AdminLiveGamePage: React.FC = () => {
               })()}
             </div>
 
-            {/* Option Distribution & Per-Question Player Scores */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left: 4 Color Option Breakdown */}
               <div className="lg:col-span-5 bg-slate-900/90 border border-white/15 rounded-3xl p-6 space-y-4">
                 <h3 className="text-base font-extrabold text-white">Cevap Dağılımı</h3>
                 {(['RED', 'BLUE', 'YELLOW', 'GREEN'] as OptionColor[]).map((col) => {
@@ -721,7 +717,6 @@ export const AdminLiveGamePage: React.FC = () => {
                 })}
               </div>
 
-              {/* Right: SORU SONUÇLARI (Ahmet +92, Ayşe +84...) */}
               <div className="lg:col-span-7 bg-slate-900/90 border border-white/15 rounded-3xl p-6 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -802,9 +797,7 @@ export const AdminLiveGamePage: React.FC = () => {
           </div>
         )}
 
-        {/* ------------------------------------------------------------------- */}
-        {/* STATE 6: LEADERBOARD (Section 16)                                   */}
-        {/* ------------------------------------------------------------------- */}
+        {/* STATE 6: LEADERBOARD */}
         {game.status === 'LEADERBOARD' && (
           <div className="max-w-3xl w-full mx-auto bg-slate-900/95 border border-white/15 rounded-3xl p-8 shadow-2xl space-y-6">
             <div className="flex items-center justify-between">
@@ -866,9 +859,7 @@ export const AdminLiveGamePage: React.FC = () => {
           </div>
         )}
 
-        {/* ------------------------------------------------------------------- */}
-        {/* STATE 7: FINISHED / FINAL SONUÇ EKRANI (Section 17 & 35)            */}
-        {/* ------------------------------------------------------------------- */}
+        {/* STATE 7: FINISHED */}
         {game.status === 'FINISHED' && (
           <div className="space-y-8">
             <div className="bg-slate-900/95 border border-white/15 rounded-3xl p-8 sm:p-10 text-center shadow-2xl">
@@ -880,7 +871,6 @@ export const AdminLiveGamePage: React.FC = () => {
                 🏆 YARIŞMA SONUÇLARI
               </h1>
 
-              {/* Highlighted Winner Card */}
               {leaderboard[0] && (
                 <div className="max-w-lg mx-auto mb-8 p-6 rounded-3xl bg-gradient-to-br from-amber-500/30 via-yellow-500/20 to-indigo-600/20 border-2 border-amber-400 shadow-2xl animate-float">
                   <div className="text-4xl mb-2">👑 🥇</div>
@@ -896,7 +886,6 @@ export const AdminLiveGamePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Full Final Ranking List */}
               <div className="max-w-2xl mx-auto space-y-3 text-left">
                 {leaderboard.map((p, idx) => {
                   const medal =
@@ -938,7 +927,6 @@ export const AdminLiveGamePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Section 35: Simultaneous Answer Timestamp Log for Admin */}
             {allAnswers.length > 0 && (
               <div className="bg-slate-900/90 border border-white/15 rounded-3xl p-6">
                 <h3 className="text-base font-extrabold text-white mb-1">
