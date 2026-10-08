@@ -10,6 +10,7 @@ import {
   type OptionColor,
   type Player,
 } from '../../shared/types.ts';
+import { ShapeIcon } from '../components/ShapeIcon.tsx';
 
 export const PlayerGamePage: React.FC = () => {
   const { gameCode: routeCode } = useParams<{ gameCode?: string }>();
@@ -406,9 +407,9 @@ export const PlayerGamePage: React.FC = () => {
                   const m = COLOR_META[chosen];
                   return (
                     <div
-                      className={`w-24 h-24 rounded-2xl ${m.bgClass} border-4 ${m.borderClass} flex items-center justify-center text-5xl shadow-xl`}
+                      className={`w-24 h-24 rounded-2xl ${m.bgClass} border-4 ${m.borderClass} flex items-center justify-center shadow-xl text-white`}
                     >
-                      {m.emoji}
+                      <ShapeIcon color={chosen} className="w-12 h-12 drop-shadow" />
                     </div>
                   );
                 })()}
@@ -428,12 +429,13 @@ export const PlayerGamePage: React.FC = () => {
                       key={col}
                       type="button"
                       onClick={() => handleSelectColor(col)}
-                      className={`${m.bgClass} ${m.hoverClass} active:scale-95 border-4 ${m.borderClass} rounded-2xl flex flex-col items-center justify-center p-4 shadow-lg transition`}
+                      aria-label={m.shapeName}
+                      className={`${m.bgClass} ${m.hoverClass} active:scale-95 border-4 ${m.borderClass} rounded-2xl flex items-center justify-center p-6 shadow-lg transition text-white`}
                     >
-                      <span className="text-5xl sm:text-6xl mb-3 drop-shadow">{m.emoji}</span>
-                      <span className="text-xl sm:text-2xl font-black tracking-wider text-white uppercase">
-                        {m.label}
-                      </span>
+                      <ShapeIcon
+                        color={col}
+                        className="w-20 h-20 sm:w-24 sm:h-24 text-white drop-shadow-md"
+                      />
                     </button>
                   );
                 })}
@@ -480,12 +482,16 @@ export const PlayerGamePage: React.FC = () => {
                     </div>
                   </div>
 
-                  {correctMeta && (
-                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
-                      Doğru Cevap:{' '}
+                  {correctCol && correctMeta && (
+                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-center gap-2">
+                      <span>Doğru Cevap:</span>
+                      <span
+                        className={`inline-flex items-center justify-center w-6 h-6 rounded-lg ${correctMeta.bgClass} text-white`}
+                      >
+                        <ShapeIcon color={correctCol} className="w-3.5 h-3.5" />
+                      </span>
                       <strong className="text-slate-900">
-                        {correctMeta.emoji} {correctMeta.label.toUpperCase()} (
-                        {questionResults?.correctOptionText})
+                        {questionResults?.correctOptionText}
                       </strong>
                     </div>
                   )}

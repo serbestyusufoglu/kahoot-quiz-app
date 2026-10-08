@@ -33,6 +33,7 @@ import {
   type Question,
   type Quiz,
 } from '../../shared/types.ts';
+import { ShapeIcon } from '../components/ShapeIcon.tsx';
 
 type AdminTab = 'dashboard' | 'questions' | 'quizzes';
 
@@ -692,18 +693,41 @@ export const AdminDashboardPage: React.FC = () => {
                             <td className="py-4 px-5 max-w-md">
                               <div className="font-bold text-slate-900">{q.text}</div>
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-2 text-xs text-slate-600 font-medium">
-                                <span className="truncate">🔴 {q.redOption}</span>
-                                <span className="truncate">🔵 {q.blueOption}</span>
-                                <span className="truncate">🟡 {q.yellowOption}</span>
-                                <span className="truncate">🟢 {q.greenOption}</span>
+                                <span className="truncate flex items-center gap-1">
+                                  <span className="w-4 h-4 rounded bg-[#E21B3C] text-white inline-flex items-center justify-center shrink-0">
+                                    <ShapeIcon color="RED" className="w-2.5 h-2.5" />
+                                  </span>
+                                  <span className="truncate">{q.redOption}</span>
+                                </span>
+                                <span className="truncate flex items-center gap-1">
+                                  <span className="w-4 h-4 rounded bg-[#1368CE] text-white inline-flex items-center justify-center shrink-0">
+                                    <ShapeIcon color="BLUE" className="w-2.5 h-2.5" />
+                                  </span>
+                                  <span className="truncate">{q.blueOption}</span>
+                                </span>
+                                <span className="truncate flex items-center gap-1">
+                                  <span className="w-4 h-4 rounded bg-[#D89E00] text-white inline-flex items-center justify-center shrink-0">
+                                    <ShapeIcon color="YELLOW" className="w-2.5 h-2.5" />
+                                  </span>
+                                  <span className="truncate">{q.yellowOption}</span>
+                                </span>
+                                <span className="truncate flex items-center gap-1">
+                                  <span className="w-4 h-4 rounded bg-[#26890C] text-white inline-flex items-center justify-center shrink-0">
+                                    <ShapeIcon color="GREEN" className="w-2.5 h-2.5" />
+                                  </span>
+                                  <span className="truncate">{q.greenOption}</span>
+                                </span>
                               </div>
                             </td>
                             <td className="py-4 px-4 whitespace-nowrap">
                               <span
                                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${meta.badgeClass}`}
                               >
-                                <span>{meta.emoji}</span>
-                                <span>{meta.label}:</span>
+                                <span
+                                  className={`w-4 h-4 rounded ${meta.bgClass} text-white inline-flex items-center justify-center`}
+                                >
+                                  <ShapeIcon color={q.correctColor} className="w-2.5 h-2.5" />
+                                </span>
                                 <span className="font-extrabold">{correctText}</span>
                               </span>
                             </td>
@@ -872,7 +896,7 @@ export const AdminDashboardPage: React.FC = () => {
                   {editingQuestion ? 'Soruyu Düzenle' : 'Yeni Soru Oluştur'}
                 </h2>
                 <p className="text-xs text-slate-500">
-                  4 renk seçeneğini, doğru cevabı ve soru süresini belirleyin.
+                  4 renk/simge seçeneğini, doğru cevabı ve soru süresini belirleyin.
                 </p>
               </div>
               <button
@@ -901,7 +925,12 @@ export const AdminDashboardPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200">
                   <label className="flex items-center justify-between text-xs font-extrabold text-[#E21B3C] mb-1.5">
-                    <span>🔴 Cevap A — Renk: Kırmızı</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-md bg-[#E21B3C] text-white inline-flex items-center justify-center">
+                        <ShapeIcon color="RED" className="w-3 h-3" />
+                      </span>
+                      <span>Cevap A (Daire)</span>
+                    </span>
                     {qCorrectColor === 'RED' && (
                       <span className="px-2 py-0.5 rounded bg-[#E21B3C] text-white text-[10px]">
                         DOĞRU CEVAP
@@ -913,14 +942,19 @@ export const AdminDashboardPage: React.FC = () => {
                     required
                     value={qRed}
                     onChange={(e) => setQRed(e.target.value)}
-                    placeholder="Kırmızı seçenek metni..."
+                    placeholder="Kırmızı daire seçeneği..."
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-rose-200 focus:border-[#E21B3C] focus:outline-none text-slate-900 text-sm"
                   />
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-sky-50/70 border border-sky-200">
                   <label className="flex items-center justify-between text-xs font-extrabold text-[#1368CE] mb-1.5">
-                    <span>🔵 Cevap B — Renk: Mavi</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-md bg-[#1368CE] text-white inline-flex items-center justify-center">
+                        <ShapeIcon color="BLUE" className="w-3 h-3" />
+                      </span>
+                      <span>Cevap B (Üçgen)</span>
+                    </span>
                     {qCorrectColor === 'BLUE' && (
                       <span className="px-2 py-0.5 rounded bg-[#1368CE] text-white text-[10px]">
                         DOĞRU CEVAP
@@ -932,14 +966,19 @@ export const AdminDashboardPage: React.FC = () => {
                     required
                     value={qBlue}
                     onChange={(e) => setQBlue(e.target.value)}
-                    placeholder="Mavi seçenek metni..."
+                    placeholder="Mavi üçgen seçeneği..."
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-sky-200 focus:border-[#1368CE] focus:outline-none text-slate-900 text-sm"
                   />
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200">
                   <label className="flex items-center justify-between text-xs font-extrabold text-[#B88600] mb-1.5">
-                    <span>🟡 Cevap C — Renk: Sarı</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-md bg-[#D89E00] text-white inline-flex items-center justify-center">
+                        <ShapeIcon color="YELLOW" className="w-3 h-3" />
+                      </span>
+                      <span>Cevap C (Altıgen)</span>
+                    </span>
                     {qCorrectColor === 'YELLOW' && (
                       <span className="px-2 py-0.5 rounded bg-[#D89E00] text-white text-[10px]">
                         DOĞRU CEVAP
@@ -951,14 +990,19 @@ export const AdminDashboardPage: React.FC = () => {
                     required
                     value={qYellow}
                     onChange={(e) => setQYellow(e.target.value)}
-                    placeholder="Sarı seçenek metni..."
+                    placeholder="Sarı altıgen seçeneği..."
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-amber-200 focus:border-[#D89E00] focus:outline-none text-slate-900 text-sm"
                   />
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200">
                   <label className="flex items-center justify-between text-xs font-extrabold text-[#26890C] mb-1.5">
-                    <span>🟢 Cevap D — Renk: Yeşil</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-md bg-[#26890C] text-white inline-flex items-center justify-center">
+                        <ShapeIcon color="GREEN" className="w-3 h-3" />
+                      </span>
+                      <span>Cevap D (Kare)</span>
+                    </span>
                     {qCorrectColor === 'GREEN' && (
                       <span className="px-2 py-0.5 rounded bg-[#26890C] text-white text-[10px]">
                         DOĞRU CEVAP
@@ -970,7 +1014,7 @@ export const AdminDashboardPage: React.FC = () => {
                     required
                     value={qGreen}
                     onChange={(e) => setQGreen(e.target.value)}
-                    placeholder="Yeşil seçenek metni..."
+                    placeholder="Yeşil kare seçeneği..."
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-emerald-200 focus:border-[#26890C] focus:outline-none text-slate-900 text-sm"
                   />
                 </div>
@@ -978,7 +1022,7 @@ export const AdminDashboardPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
-                  Doğru Cevap Rengi
+                  Doğru Cevap Seçimi
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {(['RED', 'BLUE', 'YELLOW', 'GREEN'] as OptionColor[]).map((col) => {
@@ -992,11 +1036,11 @@ export const AdminDashboardPage: React.FC = () => {
                         className={`py-3 px-3 rounded-2xl font-extrabold text-xs flex items-center justify-center gap-2 border-2 transition ${
                           selected
                             ? `${m.bgClass} border-slate-900 text-white shadow-md scale-[1.02]`
-                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                            : `${m.bgClass} opacity-60 hover:opacity-90 border-transparent text-white`
                         }`}
                       >
-                        <span>{m.emoji}</span>
-                        <span>{m.label}</span>
+                        <ShapeIcon color={col} className="w-5 h-5 text-white" />
+                        <span>{m.shapeName}</span>
                         {selected && <CheckCircle2 className="w-4 h-4" />}
                       </button>
                     );

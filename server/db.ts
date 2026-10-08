@@ -31,6 +31,7 @@ function getStoreFilePath(): string {
 }
 
 const STORE_FILE = getStoreFilePath();
+const DEFAULT_ADMIN_ID = 'admin-1';
 
 interface DatabaseSchema {
   admins: Array<{
@@ -42,6 +43,7 @@ interface DatabaseSchema {
   questions: Question[];
   quizzes: Array<{
     id: string;
+    ownerId?: string;
     title: string;
     description: string;
     questionIds: string[];
@@ -49,6 +51,7 @@ interface DatabaseSchema {
   }>;
   games: Array<{
     id: string;
+    ownerId?: string;
     gameCode: string;
     quizId: string;
     status: GameStatus;
@@ -80,6 +83,7 @@ function createInitialSeedData(): DatabaseSchema {
   const sampleQuestions: Question[] = [
     {
       id: 'q-1',
+      ownerId: DEFAULT_ADMIN_ID,
       text: "Dünya'nın doğal uydusu hangisidir?",
       redOption: 'Mars',
       blueOption: 'Ay',
@@ -93,6 +97,7 @@ function createInitialSeedData(): DatabaseSchema {
     },
     {
       id: 'q-2',
+      ownerId: DEFAULT_ADMIN_ID,
       text: 'Güneş sisteminin merkezinde hangi gök cismi bulunur?',
       redOption: 'Güneş',
       blueOption: 'Dünya',
@@ -106,6 +111,7 @@ function createInitialSeedData(): DatabaseSchema {
     },
     {
       id: 'q-3',
+      ownerId: DEFAULT_ADMIN_ID,
       text: "Dünya'nın kendi ekseni etrafında bir tam dönüşü ne kadar sürer?",
       redOption: '365 gün 6 saat',
       blueOption: '1 ay',
@@ -119,6 +125,7 @@ function createInitialSeedData(): DatabaseSchema {
     },
     {
       id: 'q-4',
+      ownerId: DEFAULT_ADMIN_ID,
       text: "Türkiye'nin başkenti hangi şehrimizdir?",
       redOption: 'Ankara',
       blueOption: 'İstanbul',
@@ -132,6 +139,7 @@ function createInitialSeedData(): DatabaseSchema {
     },
     {
       id: 'q-5',
+      ownerId: DEFAULT_ADMIN_ID,
       text: 'Hangi gezegen "Kızıl Gezegen" olarak da bilinir?',
       redOption: 'Merkür',
       blueOption: 'Neptün',
@@ -148,7 +156,7 @@ function createInitialSeedData(): DatabaseSchema {
   return {
     admins: [
       {
-        id: 'admin-1',
+        id: DEFAULT_ADMIN_ID,
         username: defaultUsername,
         passwordHash: hashPassword(defaultPassword),
         createdAt: now,
@@ -158,6 +166,7 @@ function createInitialSeedData(): DatabaseSchema {
     quizzes: [
       {
         id: 'quiz-1',
+        ownerId: DEFAULT_ADMIN_ID,
         title: '5. Sınıf Fen Bilimleri – Dünya ve Evren',
         description: 'Güneş sistemi, Dünya ve Ay ünitesi değerlendirme yarışması',
         questionIds: ['q-1', 'q-2', 'q-3', 'q-5'],
@@ -165,6 +174,7 @@ function createInitialSeedData(): DatabaseSchema {
       },
       {
         id: 'quiz-2',
+        ownerId: DEFAULT_ADMIN_ID,
         title: 'Genel Kültür & Coğrafya Hızlı Yarışma',
         description: 'Sınıf içi genel kültür yarışması',
         questionIds: ['q-4', 'q-1', 'q-2'],
@@ -211,6 +221,12 @@ export function initDatabase(): void {
   readStore();
 }
 
+function matchesOwner(itemOwnerId: string | undefined, targetOwnerId?: string): boolean {
+  if (!targetOwnerId) return true;
+  const resolvedOwner = itemOwnerId || DEFAULT_ADMIN_ID;
+  return resolvedOwner === targetOwnerId;
+}
+
 // --- Admin Queries ---
 export function verifyAdmin(username: string, password: string): AdminUser | null {
   const store = readStore();
@@ -230,7 +246,7 @@ export function verifyAdmin(username: string, password: string): AdminUser | nul
     password === defaultPassword
   ) {
     return {
-      id: 'admin-default',
+      id: DEFAULT_ADMIN_ID,
       username: defaultUsername,
       createdAt: new Date().toISOString(),
     };
@@ -239,17 +255,62 @@ export function verifyAdmin(username: string, password: string): AdminUser | nul
   return null;
 }
 
+export function registerAdmin(
+  username: string,
+  password: string
+): { admin?: AdminUser; error?: string } {
+  const store = readStore();
+  const cleanUser = username.trim();
+
+  if (cleanUser.length < 3) {
+    return { error: 'Kullanıcı adı en az 3 karakter olmalıdır.' };
+  }
+  if (password.length < 4) {
+    return { error: 'Şifre en az 4 karakter olmalıdır.' };
+  }
+
+  const defaultUsername = process.env.DEFAULT_ADMIN_USER || 'admin';
+  const exists =
+    cleanUser.toLowerCase() === defaultUsername.toLowerCase() ||
+    store.admins.some((a) => a.username.toLowerCase() === cleanUser.toLowerCase());
+
+  if (exists) {
+    return { error: 'Bu kullanıcı adı zaten kullanılıyor. Lütfen başka bir ad seçin.' };
+  }
+
+  const id = `admin-${crypto.randomUUID()}`;
+  const createdAt = new Date().toISOString();
+
+  store.admins.push({
+    id,
+    username: cleanUser,
+    passwordHash: hashPassword(password),
+    createdAt,
+  });
+
+  writeStore(store);
+  return {
+    admin: {
+      id,
+      username: cleanUser,
+      createdAt,
+    },
+  };
+}
+
 // --- Question Queries ---
-export function getAllQuestions(): Question[] {
+export function getAllQuestions(ownerId?: string): Question[] {
   const store = readStore();
   return [...store.questions]
+    .filter((q) => matchesOwner(q.ownerId, ownerId))
     .reverse()
     .map((q) => {
       const usedInQuizzes = store.quizzes
-        .filter((qz) => qz.questionIds.includes(q.id))
+        .filter((qz) => matchesOwner(qz.ownerId, ownerId) && qz.questionIds.includes(q.id))
         .map((qz) => ({ id: qz.id, title: qz.title }));
       return {
         ...q,
+        ownerId: q.ownerId || DEFAULT_ADMIN_ID,
         usedInQuizzes,
       };
     });
@@ -258,10 +319,11 @@ export function getAllQuestions(): Question[] {
 export function getQuestionById(id: string): Question | null {
   const store = readStore();
   const q = store.questions.find((item) => item.id === id);
-  return q ? { ...q } : null;
+  return q ? { ...q, ownerId: q.ownerId || DEFAULT_ADMIN_ID } : null;
 }
 
 export function createQuestion(input: {
+  ownerId?: string;
   text: string;
   redOption: string;
   blueOption: string;
@@ -279,6 +341,7 @@ export function createQuestion(input: {
 
   const newQ: Question = {
     id,
+    ownerId: input.ownerId || DEFAULT_ADMIN_ID,
     text: input.text.trim(),
     redOption: input.redOption.trim(),
     blueOption: input.blueOption.trim(),
@@ -309,10 +372,13 @@ export function updateQuestion(
     duration: number;
     mediaUrl?: string | null;
     category?: string | null;
-  }
+  },
+  ownerId?: string
 ): Question | null {
   const store = readStore();
-  const idx = store.questions.findIndex((q) => q.id === id);
+  const idx = store.questions.findIndex(
+    (q) => q.id === id && matchesOwner(q.ownerId, ownerId)
+  );
   if (idx === -1) return null;
 
   const existing = store.questions[idx];
@@ -336,23 +402,28 @@ export function updateQuestion(
   return updated;
 }
 
-export function deleteQuestion(id: string): boolean {
+export function deleteQuestion(id: string, ownerId?: string): boolean {
   const store = readStore();
   const before = store.questions.length;
-  store.questions = store.questions.filter((q) => q.id !== id);
+  store.questions = store.questions.filter(
+    (q) => !(q.id === id && matchesOwner(q.ownerId, ownerId))
+  );
   if (store.questions.length === before) return false;
 
   for (const qz of store.quizzes) {
-    qz.questionIds = qz.questionIds.filter((qId) => qId !== id);
+    if (matchesOwner(qz.ownerId, ownerId)) {
+      qz.questionIds = qz.questionIds.filter((qId) => qId !== id);
+    }
   }
   writeStore(store);
   return true;
 }
 
-export function duplicateQuestion(id: string): Question | null {
+export function duplicateQuestion(id: string, ownerId?: string): Question | null {
   const existing = getQuestionById(id);
-  if (!existing) return null;
+  if (!existing || !matchesOwner(existing.ownerId, ownerId)) return null;
   return createQuestion({
+    ownerId: ownerId || existing.ownerId || DEFAULT_ADMIN_ID,
     text: `${existing.text} (Kopya)`,
     redOption: existing.redOption,
     blueOption: existing.blueOption,
@@ -366,9 +437,11 @@ export function duplicateQuestion(id: string): Question | null {
 }
 
 // --- Quiz Queries ---
-export function getQuizById(id: string): Quiz | null {
+export function getQuizById(id: string, ownerId?: string): Quiz | null {
   const store = readStore();
-  const qz = store.quizzes.find((item) => item.id === id);
+  const qz = store.quizzes.find(
+    (item) => item.id === id && matchesOwner(item.ownerId, ownerId)
+  );
   if (!qz) return null;
 
   const qMap = new Map(store.questions.map((q) => [q.id, q]));
@@ -378,6 +451,7 @@ export function getQuizById(id: string): Quiz | null {
 
   return {
     id: qz.id,
+    ownerId: qz.ownerId || DEFAULT_ADMIN_ID,
     title: qz.title,
     description: qz.description || '',
     questions,
@@ -387,15 +461,17 @@ export function getQuizById(id: string): Quiz | null {
   };
 }
 
-export function getAllQuizzes(): Quiz[] {
+export function getAllQuizzes(ownerId?: string): Quiz[] {
   const store = readStore();
   return [...store.quizzes]
+    .filter((qz) => matchesOwner(qz.ownerId, ownerId))
     .reverse()
     .map((qz) => getQuizById(qz.id))
     .filter((qz): qz is Quiz => Boolean(qz));
 }
 
 export function createQuiz(input: {
+  ownerId?: string;
   title: string;
   description?: string;
   questionIds: string[];
@@ -406,6 +482,7 @@ export function createQuiz(input: {
 
   store.quizzes.push({
     id,
+    ownerId: input.ownerId || DEFAULT_ADMIN_ID,
     title: input.title.trim(),
     description: (input.description || '').trim(),
     questionIds: [...input.questionIds],
@@ -422,10 +499,13 @@ export function updateQuiz(
     title: string;
     description?: string;
     questionIds: string[];
-  }
+  },
+  ownerId?: string
 ): Quiz | null {
   const store = readStore();
-  const idx = store.quizzes.findIndex((qz) => qz.id === id);
+  const idx = store.quizzes.findIndex(
+    (qz) => qz.id === id && matchesOwner(qz.ownerId, ownerId)
+  );
   if (idx === -1) return null;
 
   store.quizzes[idx] = {
@@ -439,19 +519,22 @@ export function updateQuiz(
   return getQuizById(id);
 }
 
-export function deleteQuiz(id: string): boolean {
+export function deleteQuiz(id: string, ownerId?: string): boolean {
   const store = readStore();
   const before = store.quizzes.length;
-  store.quizzes = store.quizzes.filter((qz) => qz.id !== id);
+  store.quizzes = store.quizzes.filter(
+    (qz) => !(qz.id === id && matchesOwner(qz.ownerId, ownerId))
+  );
   if (store.quizzes.length === before) return false;
   writeStore(store);
   return true;
 }
 
-export function duplicateQuiz(id: string): Quiz | null {
-  const existing = getQuizById(id);
+export function duplicateQuiz(id: string, ownerId?: string): Quiz | null {
+  const existing = getQuizById(id, ownerId);
   if (!existing) return null;
   return createQuiz({
+    ownerId: ownerId || existing.ownerId || DEFAULT_ADMIN_ID,
     title: `${existing.title} (Kopya)`,
     description: existing.description,
     questionIds: existing.questionIds,
@@ -469,8 +552,8 @@ export function generateUniqueGameCode(): string {
   return String(Date.now()).slice(-6);
 }
 
-export function createGameRecord(quizId: string): Game | null {
-  const quiz = getQuizById(quizId);
+export function createGameRecord(quizId: string, ownerId?: string): Game | null {
+  const quiz = getQuizById(quizId, ownerId);
   if (!quiz || quiz.questions.length === 0) return null;
 
   const store = readStore();
@@ -480,6 +563,7 @@ export function createGameRecord(quizId: string): Game | null {
 
   store.games.push({
     id,
+    ownerId: ownerId || quiz.ownerId || DEFAULT_ADMIN_ID,
     gameCode,
     quizId,
     status: 'LOBBY',
@@ -505,6 +589,7 @@ export function getGameById(id: string): Game | null {
 
   return {
     id: row.id,
+    ownerId: row.ownerId || DEFAULT_ADMIN_ID,
     gameCode: row.gameCode,
     quizId: row.quizId,
     quizTitle: quiz?.title || 'Quiz',
@@ -727,19 +812,25 @@ export function getAllAnswersForGame(gameId: string): Answer[] {
     }));
 }
 
-export function getDashboardStats() {
+export function getDashboardStats(ownerId?: string) {
   const store = readStore();
-  const activeGamesList = store.games.filter((g) => g.status !== 'FINISHED');
+  const userQuestions = store.questions.filter((q) => matchesOwner(q.ownerId, ownerId));
+  const userQuizzes = store.quizzes.filter((qz) => matchesOwner(qz.ownerId, ownerId));
+  const userGames = store.games.filter((g) => matchesOwner(g.ownerId, ownerId));
+  const userGameIds = new Set(userGames.map((g) => g.id));
+  const activeGamesList = userGames.filter((g) => g.status !== 'FINISHED');
   const latestActive =
     activeGamesList.length > 0
       ? getGameById(activeGamesList[activeGamesList.length - 1].id)
       : null;
 
+  const userPlayers = store.players.filter((p) => userGameIds.has(p.gameId));
+
   return {
-    totalQuestions: store.questions.length,
-    totalQuizzes: store.quizzes.length,
+    totalQuestions: userQuestions.length,
+    totalQuizzes: userQuizzes.length,
     activeGames: activeGamesList.length,
-    totalPlayers: store.players.length,
+    totalPlayers: userPlayers.length,
     latestActiveGame: latestActive,
   };
 }

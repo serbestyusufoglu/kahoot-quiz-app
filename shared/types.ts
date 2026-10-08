@@ -19,6 +19,7 @@ export interface AdminUser {
 
 export interface Question {
   id: string;
+  ownerId?: string;
   text: string;
   redOption: string;
   blueOption: string;
@@ -35,6 +36,7 @@ export interface Question {
 
 export interface Quiz {
   id: string;
+  ownerId?: string;
   title: string;
   description?: string;
   questions: Question[];
@@ -74,6 +76,7 @@ export interface Answer {
 
 export interface Game {
   id: string;
+  ownerId?: string;
   gameCode: string;
   quizId: string;
   quizTitle: string;
@@ -134,6 +137,7 @@ export const COLOR_META: Record<
   {
     key: OptionColor;
     label: string;
+    shapeName: string;
     emoji: string;
     bgClass: string;
     hoverClass: string;
@@ -145,7 +149,8 @@ export const COLOR_META: Record<
   RED: {
     key: 'RED',
     label: 'Kırmızı',
-    emoji: '🔴',
+    shapeName: 'Daire',
+    emoji: '●',
     bgClass: 'bg-[#E21B3C]',
     hoverClass: 'hover:bg-[#C81533]',
     borderClass: 'border-[#ff4d6a]',
@@ -155,7 +160,8 @@ export const COLOR_META: Record<
   BLUE: {
     key: 'BLUE',
     label: 'Mavi',
-    emoji: '🔵',
+    shapeName: 'Üçgen',
+    emoji: '▲',
     bgClass: 'bg-[#1368CE]',
     hoverClass: 'hover:bg-[#0F56AC]',
     borderClass: 'border-[#4592f5]',
@@ -165,7 +171,8 @@ export const COLOR_META: Record<
   YELLOW: {
     key: 'YELLOW',
     label: 'Sarı',
-    emoji: '🟡',
+    shapeName: 'Altıgen',
+    emoji: '⬢',
     bgClass: 'bg-[#D89E00]',
     hoverClass: 'hover:bg-[#B88600]',
     borderClass: 'border-[#ffc125]',
@@ -175,7 +182,8 @@ export const COLOR_META: Record<
   GREEN: {
     key: 'GREEN',
     label: 'Yeşil',
-    emoji: '🟢',
+    shapeName: 'Kare',
+    emoji: '■',
     bgClass: 'bg-[#26890C]',
     hoverClass: 'hover:bg-[#1E6E09]',
     borderClass: 'border-[#46b828]',

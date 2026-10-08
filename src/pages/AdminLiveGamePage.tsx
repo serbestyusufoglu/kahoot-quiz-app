@@ -28,6 +28,7 @@ import {
   type GameStateSnapshot,
   type OptionColor,
 } from '../../shared/types.ts';
+import { ShapeIcon } from '../components/ShapeIcon.tsx';
 
 export const AdminLiveGamePage: React.FC = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
@@ -608,7 +609,7 @@ export const AdminLiveGamePage: React.FC = () => {
               </div>
             </div>
 
-            {/* 4 Colored Answer Cards with rounded-2xl */}
+            {/* 4 Colored Answer Cards with Geometric Shapes (No Color Names) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
               {(
                 [
@@ -622,16 +623,13 @@ export const AdminLiveGamePage: React.FC = () => {
                 return (
                   <div
                     key={opt.color}
-                    className={`${m.bgClass} border-4 ${m.borderClass} rounded-2xl p-7 sm:p-9 shadow-lg flex items-center gap-5 transition transform hover:scale-[1.01]`}
+                    className={`${m.bgClass} border-4 ${m.borderClass} rounded-2xl p-7 sm:p-9 shadow-lg flex items-center gap-5 transition transform hover:scale-[1.01] text-white`}
                   >
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-black/25 flex items-center justify-center text-3xl sm:text-4xl shrink-0">
-                      {m.emoji}
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-black/25 flex items-center justify-center shrink-0">
+                      <ShapeIcon color={opt.color} className="w-10 h-10 sm:w-12 sm:h-12 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-white/85">
-                        {m.label}
-                      </div>
-                      <div className="text-2xl sm:text-3xl md:text-4xl font-black text-white break-words mt-0.5">
+                      <div className="text-2xl sm:text-3xl md:text-4xl font-black text-white break-words">
                         {opt.text}
                       </div>
                     </div>
@@ -657,13 +655,12 @@ export const AdminLiveGamePage: React.FC = () => {
                 const winMeta = COLOR_META[questionResults.correctColor];
                 return (
                   <div
-                    className={`inline-flex items-center gap-4 px-8 py-5 rounded-2xl ${winMeta.bgClass} border-4 ${winMeta.borderClass} shadow-xl`}
+                    className={`inline-flex items-center gap-4 px-8 py-5 rounded-2xl ${winMeta.bgClass} border-4 ${winMeta.borderClass} shadow-xl text-white`}
                   >
-                    <span className="text-4xl">{winMeta.emoji}</span>
+                    <div className="w-12 h-12 rounded-xl bg-black/25 flex items-center justify-center shrink-0">
+                      <ShapeIcon color={questionResults.correctColor} className="w-8 h-8 text-white" />
+                    </div>
                     <div className="text-left">
-                      <div className="text-xs font-extrabold uppercase tracking-widest text-white/85">
-                        {winMeta.label.toUpperCase()}
-                      </div>
                       <div className="text-2xl sm:text-4xl font-black text-white">
                         {questionResults.correctOptionText}
                       </div>
@@ -699,11 +696,14 @@ export const AdminLiveGamePage: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-xl">{m.emoji}</span>
-                        <div className="truncate">
-                          <span className="font-extrabold">{m.label}: </span>
-                          <span>{optText}</span>
-                        </div>
+                        <span
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            isCorrect ? 'bg-black/25 text-white' : `${m.bgClass} text-white`
+                          }`}
+                        >
+                          <ShapeIcon color={col} className="w-5 h-5" />
+                        </span>
+                        <div className="truncate font-extrabold">{optText}</div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {isCorrect && <CheckCircle2 className="w-5 h-5 text-white" />}
@@ -743,9 +743,17 @@ export const AdminLiveGamePage: React.FC = () => {
                             className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4"
                           >
                             <div className="flex items-center gap-3">
-                              <span className="text-lg">
-                                {colMeta ? colMeta.emoji : '⚪'}
-                              </span>
+                              {r.selectedColor && colMeta ? (
+                                <span
+                                  className={`w-8 h-8 rounded-xl ${colMeta.bgClass} text-white flex items-center justify-center shrink-0`}
+                                >
+                                  <ShapeIcon color={r.selectedColor} className="w-4 h-4" />
+                                </span>
+                              ) : (
+                                <span className="w-8 h-8 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-bold shrink-0">
+                                  -
+                                </span>
+                              )}
                               <div>
                                 <div className="font-extrabold text-slate-900 text-base">
                                   {r.playerName}

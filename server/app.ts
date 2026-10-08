@@ -6,6 +6,7 @@ import * as QRCodePkg from 'qrcode';
 import {
   initDatabase,
   verifyAdmin,
+  registerAdmin,
   getAllQuestions,
   createQuestion,
   updateQuestion,
@@ -645,13 +646,29 @@ app.post('/api/admin/login', (req, res) => {
   res.json({ token, admin });
 });
 
+app.post('/api/admin/register', (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) {
+    res.status(400).json({ error: 'Kullanıcı adı ve şifre gereklidir.' });
+    return;
+  }
+  const result = registerAdmin(String(username).trim(), String(password));
+  if (result.error || !result.admin) {
+    res.status(400).json({ error: result.error || 'Kayıt yapılamadı.' });
+    return;
+  }
+  const token = signAdminToken({ id: result.admin.id, username: result.admin.username });
+  res.status(201).json({ token, admin: result.admin });
+});
+
 app.get('/api/admin/me', requireAdmin, (req, res) => {
   res.json({ admin: (req as any).admin });
 });
 
-app.get('/api/admin/dashboard', requireAdmin, (_req, res) => {
-  const stats = getDashboardStats();
-  const recentQuizzes = getAllQuizzes().slice(0, 6);
+app.get('/api/admin/dashboard', requireAdmin, (req, res) => {
+  const ownerId = (req as any).admin.id;
+  const stats = getDashboardStats(ownerId);
+  const recentQuizzes = getAllQuizzes(ownerId).slice(0, 6);
   res.json({
     ...stats,
     recentQuizzes,
@@ -659,11 +676,13 @@ app.get('/api/admin/dashboard', requireAdmin, (_req, res) => {
 });
 
 // --- Questions CRUD ---
-app.get('/api/admin/questions', requireAdmin, (_req, res) => {
-  res.json({ questions: getAllQuestions() });
+app.get('/api/admin/questions', requireAdmin, (req, res) => {
+  const ownerId = (req as any).admin.id;
+  res.json({ questions: getAllQuestions(ownerId) });
 });
 
 app.post('/api/admin/questions', requireAdmin, (req, res) => {
+  const ownerId = (req as any).admin.id;
   const { text, redOption, blueOption, yellowOption, greenOption, correctColor, duration, mediaUrl, category } =
     req.body || {};
   if (!text || !redOption || !blueOption || !yellowOption || !greenOption || !correctColor) {
@@ -671,6 +690,7 @@ app.post('/api/admin/questions', requireAdmin, (req, res) => {
     return;
   }
   const question = createQuestion({
+    ownerId,
     text,
     redOption,
     blueOption,
@@ -685,19 +705,24 @@ app.post('/api/admin/questions', requireAdmin, (req, res) => {
 });
 
 app.put('/api/admin/questions/:id', requireAdmin, (req, res) => {
+  const ownerId = (req as any).admin.id;
   const { text, redOption, blueOption, yellowOption, greenOption, correctColor, duration, mediaUrl, category } =
     req.body || {};
-  const updated = updateQuestion(String(req.params.id), {
-    text,
-    redOption,
-    blueOption,
-    yellowOption,
-    greenOption,
-    correctColor,
-    duration: Number(duration) || 20,
-    mediaUrl,
-    category,
-  });
+  const updated = updateQuestion(
+    String(req.params.id),
+    {
+      text,
+      redOption,
+      blueOption,
+      yellowOption,
+      greenOption,
+      correctColor,
+      duration: Number(duration) || 20,
+      mediaUrl,
+      category,
+    },
+    ownerId
+  );
   if (!updated) {
     res.status(404).json({ error: 'Soru bulunamadı.' });
     return;
@@ -706,7 +731,8 @@ app.put('/api/admin/questions/:id', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/admin/questions/:id', requireAdmin, (req, res) => {
-  const ok = deleteQuestion(String(req.params.id));
+  const ownerId = (req as any).admin.id;
+  const ok = deleteQuestion(String(req.params.id), ownerId);
   if (!ok) {
     res.status(404).json({ error: 'Soru bulunamadı.' });
     return;
@@ -715,7 +741,8 @@ app.delete('/api/admin/questions/:id', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/questions/:id/duplicate', requireAdmin, (req, res) => {
-  const copy = duplicateQuestion(String(req.params.id));
+  const ownerId = (req as any).admin.id;
+  const copy = duplicateQuestion(String(req.params.id), ownerId);
   if (!copy) {
     res.status(404).json({ error: 'Soru bulunamadı.' });
     return;
@@ -724,12 +751,14 @@ app.post('/api/admin/questions/:id/duplicate', requireAdmin, (req, res) => {
 });
 
 // --- Quizzes CRUD ---
-app.get('/api/admin/quizzes', requireAdmin, (_req, res) => {
-  res.json({ quizzes: getAllQuizzes() });
+app.get('/api/admin/quizzes', requireAdmin, (req, res) => {
+  const ownerId = (req as any).admin.id;
+  res.json({ quizzes: getAllQuizzes(ownerId) });
 });
 
 app.get('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
-  const quiz = getQuizById(String(req.params.id));
+  const ownerId = (req as any).admin.id;
+  const quiz = getQuizById(String(req.params.id), ownerId);
   if (!quiz) {
     res.status(404).json({ error: 'Quiz bulunamadı.' });
     return;
@@ -738,22 +767,24 @@ app.get('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/quizzes', requireAdmin, (req, res) => {
+  const ownerId = (req as any).admin.id;
   const { title, description, questionIds } = req.body || {};
   if (!title || !Array.isArray(questionIds) || questionIds.length === 0) {
     res.status(400).json({ error: 'Quiz adı ve en az 1 soru seçimi zorunludur.' });
     return;
   }
-  const quiz = createQuiz({ title, description, questionIds });
+  const quiz = createQuiz({ ownerId, title, description, questionIds });
   res.status(201).json({ quiz });
 });
 
 app.put('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
+  const ownerId = (req as any).admin.id;
   const { title, description, questionIds } = req.body || {};
   if (!title || !Array.isArray(questionIds) || questionIds.length === 0) {
     res.status(400).json({ error: 'Quiz adı ve en az 1 soru seçimi zorunludur.' });
     return;
   }
-  const updated = updateQuiz(String(req.params.id), { title, description, questionIds });
+  const updated = updateQuiz(String(req.params.id), { title, description, questionIds }, ownerId);
   if (!updated) {
     res.status(404).json({ error: 'Quiz bulunamadı.' });
     return;
@@ -762,7 +793,8 @@ app.put('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
-  const ok = deleteQuiz(String(req.params.id));
+  const ownerId = (req as any).admin.id;
+  const ok = deleteQuiz(String(req.params.id), ownerId);
   if (!ok) {
     res.status(404).json({ error: 'Quiz bulunamadı.' });
     return;
@@ -771,7 +803,8 @@ app.delete('/api/admin/quizzes/:id', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/quizzes/:id/duplicate', requireAdmin, (req, res) => {
-  const copy = duplicateQuiz(String(req.params.id));
+  const ownerId = (req as any).admin.id;
+  const copy = duplicateQuiz(String(req.params.id), ownerId);
   if (!copy) {
     res.status(404).json({ error: 'Quiz bulunamadı.' });
     return;
@@ -781,12 +814,13 @@ app.post('/api/admin/quizzes/:id/duplicate', requireAdmin, (req, res) => {
 
 // --- Games Management ---
 app.post('/api/admin/games', requireAdmin, async (req, res) => {
+  const ownerId = (req as any).admin.id;
   const { quizId } = req.body || {};
   if (!quizId) {
     res.status(400).json({ error: 'Quiz seçilmelidir.' });
     return;
   }
-  const game = createGameRecord(quizId);
+  const game = createGameRecord(quizId, ownerId);
   if (!game) {
     res.status(400).json({ error: 'Seçilen quiz bulunamadı veya içinde soru yok.' });
     return;
